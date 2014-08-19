@@ -1,5 +1,5 @@
 {
-  "name": "tcplats",
+  "name": "colenso.org",
   "version": "0.0.1",
   "scripts": {
     "start": "node app.js",
@@ -7,7 +7,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/michaelcolenso/tcplatmap.git"
+    "url": ""
   },
   "dependencies": {
     "JSONStream": "^0.9.0",
