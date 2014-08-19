@@ -214,17 +214,6 @@ io.sockets.on('connection', function(socket) {
 
       socket.emit('greet', { hello: 'Hey bro' });
 
-      socket.on('getpin', function(data) {
-        MongoClient.connect( secrets.db, function(err, db) {
-          if(err) throw err;
-          var collection = db.collection('tcsalesdata');
-          var fullpin = '28-'+ data;
-          collection.find({ 'pnum': fullpin }).sort({ saledate: 1}).toArray(function(err, results) {
-            io.emit("pin", results);
-          })
-        });
-      });
-
       socket.on('disconnect', function() {
         console.log('socket disconnected bro');
       });
