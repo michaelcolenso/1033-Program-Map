@@ -6,17 +6,13 @@ lib-cov
 *.out
 *.pid
 *.gz
-*.swp
 
 pids
 logs
 results
-tmp
-data
 
 npm-debug.log
 node_modules
-.idea
-*.iml
-.DS_Store
-Thumbs.db
+
+dist
+build
