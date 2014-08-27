@@ -2,19 +2,18 @@ $(document).ready(function() {
 
   var socket = io();
 
-  socket.on('pin', function(data) {
-    var p = document.querySelector('#saleshistory');
-    var tableRef = document.getElementById('saledata').getElementsByTagName('tbody')[0];
-    var tbody = document.getElementById('tbody');
-    tableRef.innerHTML = '';
-
-    for (i=0; i < data.length; i++) {
-      var sale = {
-        date: data[i].DateOfSale,
-        seller: data[i].grantor,
-        buyer: data[i].grantee,
-        price: data[i].saleprice,
-        terms: data[i].terms
+  socket.on('id', function(results) {
+    console.log(results);
+    var content;
+      for (i=0; i < results.length; i++) {
+        var gear = {
+          desc: results[i].desc,
+          qty: results[i].qty,
+          cost: results[i].cost
+        }
+       var cost = numeral(gear.cost);
+       content = $( "<ul class='list-unstyled'><li><h4 class='armyguns'><strong>(" + gear.qty + ")</strong>&nbsp;" + gear.desc + "&nbsp;</h4><p><small>Total Original Acquisition Value: </small><strong style='color: #DD0048;'>" + cost.format() + "</strong></p></li></ul>" );
+       content.appendTo($("#sidebar"));
       }
       var newRow   = tableRef.insertRow(0);
       newRow.innerHTML = '<td>' + moment(sale.date).fromNow() + '</td>' + '<td>' + numeral(sale.price).format('$0,0[.]00') + '</td>' + '<td>' + sale.buyer + '</td><td>' + sale.seller + '</td><td>' + sale.terms + '</td>';
@@ -37,64 +36,75 @@ $(document).ready(function() {
   var table = d3.select("#saledata")
     .style("opacity", 0);
 
-  var intro = d3.select("#intro")
-    .style("opacity", 1);
+  var div = d3.select("#map")
+        .append("div")
+        .attr("class", "tooltip")
+        .style("background", "rgba(0,0,0,0.7)")
+        .style("opacity", 0);
+
+  var color = d3.scale.threshold()
+    .domain( [1, 10, 50, 100, 1000])
+    .range([ "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"])
 
 
-  var quantize = d3.scale.quantize()
-    .domain([1, 100000])
-    .range(d3.range(5).map(function(i) { return "q" + i + "-5"; }));
+    d3.json("/js/us.json", function(error, us) {
+        if (error) return console.error(error);
 
-  var svg = d3.select(map.getPanes().overlayPane).append("svg"),
-    g = svg.append("g").attr("class", "leaflet-zoom-hide");
+        var svg = d3.select(map.getPanes().overlayPane).append("svg"),
+          g = svg.append("g").attr("class", "leaflet-zoom-hide");
 
-  d3.json("/js/tcgeo.json", function(collection) {
-    var transform = d3.geo.transform({point: projectPoint}),
-        path = d3.geo.path().projection(transform);
+        var transform = d3.geo.transform({point: projectPoint}),
+            path = d3.geo.path().projection(transform);
 
-    var feature = g.selectAll("path")
-        .data(collection.features)
-      .enter().append("path")
-        .attr("data-pin", function(d) { return d.properties.PIN })
-        .attr("data-propclass", function(d) { return d.properties.propclass })
-        .attr("data-owner", function(d) { return d.properties.ownername1 })
-        .style({'stroke': 'rgba(255,255,255,1)', 'stroke-width': '0.5px' })
-        .attr("class", function(d) {return d.properties.classdesc + ' ' + quantize( +d.properties.adjass_3)})
-        .attr("d", path)
-        .on("click", function(d) {
-          var pin = d.properties.PIN;
-          socket.emit('getpin', pin);
-          var data = {
-            street: d.properties.propstreetcombined,
-            owner: d.properties.ownername1,
-            area: d.properties.land_netAcres,
-            zone: d.properties.propclass
-          };
-
-         if (d.properties.propclass == '201') {
-           data.year = d.properties.cib_yearbuilt;
-         } else if (d.properties.propclass == '401') {
-           data.year = d.properties.resb_yearbuilt;
-         } else if (d.properties.propclass == '401') {
-           data.year = "NA";
-         }
-
-        //  console.log(data);
-            div.transition().duration(500).style("opacity", 0);
-            div.transition().duration(200).style("opacity", .9);
-            intro.transition().duration(100).style("opacity", 0).style("height", 0);
-            table.transition().duration(200).style("opacity", .9);
-            div.html( "<h3 class='lead'>" +  d.properties.propstreetcombined + "</h3>" +
-                      "<p>Owner: " + d.properties.ownername1 + "</p>" +
-                      "<p>Assessed Value: " + numeral(d.properties.adjass_3).format('$0,0[.]00') + "</p>" +
-                      "<p>Year Built: " + data.year + "</p>" +
-                      "<p>Lot Area: " + d.properties.land_netAcres + "&nbsp;Acres</p>"
-                      );
-        });
+        var feature = g.selectAll("path")
+            .data(topojson.feature(us, us.objects.counties).features)
+          .enter().append("path")
+            .style("fill", function(d) {
+              var cost = d.properties.cost;
+              var households = d.properties.households;
+              var costPerHousehold = cost / households;
+              return color(costPerHousehold);
+            })
+            .style({ 'stroke': 'rgba(0,0,0,1)', 'stroke-width': '0.3px' })
+            .attr("d", path)
+            .on("mouseover", function(d) {
+              var county = d.properties.Areaname;
+              var cost = numeral(d.properties.cost);
 
 
-    map.on("viewreset", reset);
-    reset();
+              if (county == undefined) {
+                county = 'No 1033 Program Acquisitions';
+              }
+
+                div.transition().duration(500).style("opacity", 0);
+                div.transition().duration(200).style("opacity", .9);
+                div.html( "<h3>" + county + "</h3><p>1033 Acquisition Value:</p><p><span class='ion-cash'></span>" + cost.format('$ 0,0[.]00') + "</p>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
+            })
+
+            .on("mouseout", function(d) {
+              div.transition().duration(500).style("opacity", 0);
+              })
+
+            .on("click", function(d) {
+                  $("#sidebar").empty();
+
+                  var county = d.properties.Areaname;
+                  var households = numeral(d.properties.households);
+                  var cost = numeral(d.properties.cost);
+                  var costPerHousehold = numeral(d.properties.cost / d.properties.households);
+
+                  if (county == undefined) {
+                    sidebar.hide();
+                    return;
+                  } else {
+                    $("#sidebar").prepend('<h1>' + county + '</h1><h4>Total 1033 Acquisition Value: ' + cost.format() + '</h4><h4>Number of Households: ' + households.format('0,0') + '</h4><h2>Cost per Household: ' + costPerHousehold.format() + '</h2><hr/>');
+                  }
+
+                  socket.emit('getid', county);
+                  });
+
+        map.on("viewreset", reset);
+        reset();
 
     // Reposition the SVG to cover the features.
     function reset() {
@@ -109,7 +119,9 @@ $(document).ready(function() {
 
       g   .attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
 
-      feature.attr("d", path);
+      feature
+        .attr("d", path);
+
     }
 
     // Use Leaflet to implement a D3 geometric transformation.
