@@ -17,7 +17,7 @@ $(document).ready(function() {
           cost: results[i].cost
         }
        var cost = numeral(gear.cost);
-       content = $( "<ul class='list-unstyled'><li><strong>(" + gear.qty + ")</strong>&nbsp;" + gear.desc + "&nbsp;<strong><small>" + cost.format() + "</small></strong></li></ul>" );
+       content = $( "<ul class='list-unstyled'><li><h4 class='armyguns'><strong>(" + gear.qty + ")</strong>&nbsp;" + gear.desc + "&nbsp;</h4><p><small>Total Original Acquisition Value: </small><strong style='color: #DD0048;'>" + cost.format() + "</strong></p></li></ul>" );
        content.appendTo($("#sidebar"));
       }
       sidebar.show();
@@ -33,14 +33,16 @@ $(document).ready(function() {
 
   map.addControl(sidebar);
 
-  var div = d3.select(".navbar")
+  var div = d3.select("#map")
         .append("div")
         .attr("class", "tooltip")
+        .style("background", "rgba(0,0,0,0.7)")
         .style("opacity", 0);
 
-    var quantize = d3.scale.quantize()
-    .domain([1, 50])
-    .range(d3.range(5).map(function(i) { return "q" + i + "-5"; }));
+  var color = d3.scale.threshold()
+    .domain( [1, 10, 50, 100, 1000])
+    .range([ "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"])
+
 
     d3.json("/js/us.json", function(error, us) {
         if (error) return console.error(error);
@@ -54,28 +56,30 @@ $(document).ready(function() {
         var feature = g.selectAll("path")
             .data(topojson.feature(us, us.objects.counties).features)
           .enter().append("path")
-            .attr("class", function(d) {
+            .style("fill", function(d) {
               var cost = d.properties.cost;
               var households = d.properties.households;
               var costPerHousehold = cost / households;
-              return quantize(costPerHousehold);
+              return color(costPerHousehold);
             })
             .style({ 'stroke': 'rgba(0,0,0,1)', 'stroke-width': '0.3px' })
             .attr("d", path)
             .on("mouseover", function(d) {
               var county = d.properties.Areaname;
+              var cost = numeral(d.properties.cost);
+
 
               if (county == undefined) {
-                return county = '';
+                county = 'No 1033 Program Acquisitions';
               }
 
                 div.transition().duration(500).style("opacity", 0);
                 div.transition().duration(200).style("opacity", .9);
-                div.html( "<h3>" + county + "</h3>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
+                div.html( "<h3>" + county + "</h3><p>1033 Acquisition Value:</p><p><span class='ion-cash'></span>" + cost.format('$ 0,0[.]00') + "</p>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
             })
 
             .on("mouseout", function(d) {
-              div.transition().duration(500).style("opacity", 0).style("height", "0").style("width", "0");
+              div.transition().duration(500).style("opacity", 0);
               })
 
             .on("click", function(d) {
@@ -88,9 +92,9 @@ $(document).ready(function() {
 
                   if (county == undefined) {
                     sidebar.hide();
-                    return county = '';
+                    return;
                   } else {
-                    $("#sidebar").prepend('<h1>' + county + '</h1><h4>Total value of Equipment: ' + cost.format() + '</h4><h4>Number of Households: ' + households.format('0,0') + '</h4><h4>Cost per Household: ' + costPerHousehold.format() + '</h4>');
+                    $("#sidebar").prepend('<h1>' + county + '</h1><h4>Total 1033 Acquisition Value: ' + cost.format() + '</h4><h4>Number of Households: ' + households.format('0,0') + '</h4><h2>Cost per Household: ' + costPerHousehold.format() + '</h2><hr/>');
                   }
 
                   socket.emit('getid', county);
@@ -114,6 +118,7 @@ $(document).ready(function() {
 
       feature
         .attr("d", path);
+
     }
 
     // Use Leaflet to implement a D3 geometric transformation.
