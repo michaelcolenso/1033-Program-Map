@@ -17,6 +17,9 @@
 //= require lib/bootstrap.min
 //= require socket.io-client/socket.io
 //= require leaflet/dist/leaflet
+//= require leaflet-providers/leaflet-providers
+//= require leaflet-sidebar/src/L.Control.Sidebar
+//= require leaflet-dvf
 //= require geojson.min
 //= require moment/min/moment.min
 //= require underscore/underscore

@@ -46,7 +46,7 @@ var io = require('socket.io').listen(server);
  * Connect to MongoDB.
  */
 
-mongoose.connect(process.env.MONGO_URL);
+mongoose.connect(secrets.db);
 mongoose.connection.on('error', function() {
   console.error('MongoDB Connection Error. Make sure MongoDB is running.');
 });
@@ -211,8 +211,18 @@ app.get('/auth/venmo/callback', passport.authorize('venmo', { failureRedirect: '
 app.use(errorHandler());
 
 io.sockets.on('connection', function(socket) {
-
-      socket.emit('greet', { hello: 'Hey bro' });
+      socket.on('getid', function(data) {
+          MongoClient.connect( secrets.db, function(err, db) {
+            if(err) throw err;
+            var collection = db.collection('id_county_item');
+            console.log(data);
+            var name = data;
+            collection.find( { Areaname : name }).toArray(function(err, results) {
+              console.dir(results.length);
+              io.emit("id", results);
+            });
+          });
+      });
 
       socket.on('disconnect', function() {
         console.log('socket disconnected bro');
