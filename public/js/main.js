@@ -16,19 +16,15 @@ $(document).ready(function() {
        content.appendTo($("#sidebar"));
       }
 
+      var div = d3.select("#map")
+            .append("div")
+            .attr("class", "tooltip")
+            .style("background", "rgba(0,0,0,0.7)")
+            .style("opacity", 0);
 
-
-
-
-  var div = d3.select("#map")
-        .append("div")
-        .attr("class", "tooltip")
-        .style("background", "rgba(0,0,0,0.7)")
-        .style("opacity", 0);
-
-  var color = d3.scale.threshold()
-    .domain( [1, 10, 50, 100, 1000])
-    .range([ "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"])
+      var color = d3.scale.threshold()
+        .domain( [1, 10, 50, 100, 1000])
+        .range([ "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"]);
 
 
     d3.json("/js/us.json", function(error, us) {
@@ -43,12 +39,10 @@ $(document).ready(function() {
         var feature = g.selectAll("path")
             .data(topojson.feature(us, us.objects.counties).features)
           .enter().append("path")
-            .attr("class", function(d) {
             .style("fill", function(d) {
               var cost = d.properties.cost;
               var households = d.properties.households;
               var costPerHousehold = cost / households;
-              return quantize(costPerHousehold);
               return color(costPerHousehold);
             })
             .style({ 'stroke': 'rgba(0,0,0,1)', 'stroke-width': '0.3px' })
@@ -57,20 +51,16 @@ $(document).ready(function() {
               var county = d.properties.Areaname;
               var cost = numeral(d.properties.cost);
 
-
               if (county == undefined) {
-                return county = '';
                 county = 'No 1033 Program Acquisitions';
               }
 
                 div.transition().duration(500).style("opacity", 0);
                 div.transition().duration(200).style("opacity", .9);
-                div.html( "<h3>" + county + "</h3>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
                 div.html( "<h3>" + county + "</h3><p>1033 Acquisition Value:</p><p><span class='ion-cash'></span>" + cost.format('$ 0,0[.]00') + "</p>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
             })
 
             .on("mouseout", function(d) {
-              div.transition().duration(500).style("opacity", 0).style("height", "0").style("width", "0");
               div.transition().duration(500).style("opacity", 0);
               })
 
@@ -84,13 +74,10 @@ $(document).ready(function() {
 
                   if (county == undefined) {
                     sidebar.hide();
-                    return county = '';
                     return;
                   } else {
-                    $("#sidebar").prepend('<h1>' + county + '</h1><h4>Total value of Equipment: ' + cost.format() + '</h4><h4>Number of Households: ' + households.format('0,0') + '</h4><h4>Cost per Household: ' + costPerHousehold.format() + '</h4>');
                     $("#sidebar").prepend('<h1>' + county + '</h1><h4>Total 1033 Acquisition Value: ' + cost.format() + '</h4><h4>Number of Households: ' + households.format('0,0') + '</h4><h2>Cost per Household: ' + costPerHousehold.format() + '</h2><hr/>');
                   }
-
                   socket.emit('getid', county);
                   });
 
