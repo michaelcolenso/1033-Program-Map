@@ -18,14 +18,50 @@ $(document).ready(function() {
       }
       sidebar.show();
     });
+
      var map = L.map('map', {center: [39.8282, -98.5795], zoom: 4})
         .addLayer(new L.tileLayer.provider('Stamen.TonerBackground'));
+
+     var legend = L.control({position: 'topright'});
+
+     //map.legendControl.addLegend(document.getElementById('legend').innerHTML);
 
     var sidebar = L.control.sidebar('sidebar', {
       position: 'left'
     });
 
+    legend.onAdd = function (map) {
+
+      var div = L.DomUtil.create('div', 'info legend nav'),
+          products = [ 'Under $1', '$1 < $10', '$10 < $50', '$50 < $100', '$100 < $1000' ],
+          labels = [];
+      div.innerHTML += '<p class="lead muted">1033 Program Military Equipment Acquisition Costs Per Household</p>';
+
+      // loop through our buckets and generate a label with a colored square for each interval
+      for (var i = 0; i < products.length; i++) {
+          div.innerHTML +=
+              '<span class="legend" style="background:' + getColor(products[i]) + '"></span><label> ' +
+              products[i] +  '</label><br>';
+      }
+      div.innerHTML += '<h4>Click on a county for details</h4><p><small>Data Source: <a href="https://github.com/TheUpshot/Military-Surplus-Gear">The New York Times via Github</a></small></p>';
+      return div;
+
+    };
+
     map.addControl(sidebar);
+
+    legend.addTo(map);
+
+    function getColor(d) {
+
+    return d == 'Under $1' ? '#bcbddc' :
+           d == '$1 < $10' ? '#9e9ac8' :
+           d == '$10 < $50' ? '#807dba' :
+           d == '$50 < $100' ? '#6a51a3' :
+           d == '$100 < $1000' ? '#4a1486' :
+           d == 'Parts' ? '#800026' :
+                      '#FFEDA0';
+    }
 
   var div = d3.select("#map")
       .append("div")
@@ -87,7 +123,7 @@ $(document).ready(function() {
                     sidebar.hide();
                     return;
                   } else {
-                    $("#sidebar").prepend('<h1>' + county + '</h1><h4>Total 1033 Acquisition Value: ' + cost.format() + '</h4><h4>Number of Households: ' + households.format('0,0') + '</h4><h2>Cost per Household: ' + costPerHousehold.format() + '</h2><hr/>');
+                    $("#sidebar").prepend('<p class="lead"><span class="s-1">Since 2006</span>, state and local law enforcement agencies in <span class="s-2">' + county + ' </span> requested and recieved around <span class="s-3">' + cost.format() + ' </span> worth of Military Equipment via the <a href="">Defense Department\'s 1033 program .</a><p><span class="s-4"> There are approximately ' + households.format('0,0') + ' households in ' + county + ' </span ></p></br><span class="s-5">Cost per Household: ' + costPerHousehold.format() + '</span></p><hr/><p class="s-items"><span class="ion-clipboard"></span>Items Recieved : </p>');
                   }
                   socket.emit('getid', county);
                   });

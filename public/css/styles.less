@@ -524,6 +524,7 @@
   @media (max-width: 767px) {
     .leaflet-sidebar {
       width: 100%;
+      top: 65%;
       padding: 0; }
       .leaflet-sidebar.left.visible ~ .leaflet-left {
         left: 100%; }
@@ -877,6 +878,8 @@ path {
 path:hover {
   fill: #000;
   fill-opacity: 0.4;
+  stroke: #222;
+  stroke-width: 1px;
 }
 
 
@@ -933,6 +936,7 @@ path:hover {
 
 /* Legend */
 
+
 span.residential {
   color: #bcbddc;
 }
@@ -985,11 +989,19 @@ a .mi-icon:hover {
 	margin-left: 30px;
 }
 #map .leaflet-right .leaflet-control {
-	margin-top: 30px;
+	margin-top: 0px;
+}
+
+#map .leaflet-top .leaflet-control {
+	margin-top: 0px;
 }
 
 #map .leaflet-bottom .leaflet-control {
 	margin-bottom: 100px;
+}
+
+.leaflet-right .leaflet-control {
+  margin-right: 0;
 }
 
 .q0-3{fill:rgb(252,141,89)}
@@ -998,8 +1010,23 @@ a .mi-icon:hover {
 // .q8-9{fill:rgb(127,0,0)}
 
 .info {
-  color: #777;
-  font-size: 16px;
+  max-width: 200px;
+  padding: 5%;
+  min-width: 130px;
+  background: #fff;
+  p {
+    .ion-asterisk {
+      font-size: .7em;
+    }
+  }
+    span.legend {
+      height: 25px;
+      width: 25px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 10px;
+  }
+
 }
 
 .tooltip {
@@ -1018,6 +1045,34 @@ a .mi-icon:hover {
 #sidebar {
   top: 40px;
   text-align: center;
+  .s-1 {
+    font-size: 2.5em;
+  }
+  .s-2 {
+    font-size: 3.0em;
+    font-weight: 800;
+  }
+
+  .s-3 {
+    font-size: 2.0em;
+    color: #DD0048;
+    font-weight: 800;
+  }
+
+  .s-4 {
+    font-weight: 800;
+    font-size: 1.3em;
+  }
+
+  .s-5 {
+    font-size: 2.0em;
+    font-weight: 700;
+  }
+  .s-items {
+    text-align: left;
+    font-size: 2.0em;
+    font-weight: 700;
+  }
 }
 
 #sidebar h2 {
@@ -1028,7 +1083,11 @@ a .mi-icon:hover {
 
 .armyguns {
   margin-bottom: 0;
+  text-align: left;
 }
+ p {
+   text-align: left;
+ }
 
 .ion-jet {
   color: #DD0048;
