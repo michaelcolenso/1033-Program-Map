@@ -211,6 +211,7 @@ app.get('/auth/venmo/callback', passport.authorize('venmo', { failureRedirect: '
 app.use(errorHandler());
 
 io.sockets.on('connection', function(socket) {
+
       socket.on('getid', function(data) {
           MongoClient.connect( secrets.db, function(err, db) {
             if(err) throw err;
@@ -219,7 +220,7 @@ io.sockets.on('connection', function(socket) {
             var name = data;
             collection.find( { Areaname : name }).toArray(function(err, results) {
               console.dir(results.length);
-              io.emit("id", results);
+              socket.emit("id", results);
             });
           });
       });

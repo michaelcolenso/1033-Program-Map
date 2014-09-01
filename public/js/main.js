@@ -1,9 +1,10 @@
 $(document).ready(function() {
 
+  numeral.defaultFormat('$0,0.00');
+
   var socket = io();
 
   socket.on('id', function(results) {
-    console.log(results);
     var content;
       for (i=0; i < results.length; i++) {
         var gear = {
@@ -15,16 +16,26 @@ $(document).ready(function() {
        content = $( "<ul class='list-unstyled'><li><h4 class='armyguns'><strong>(" + gear.qty + ")</strong>&nbsp;" + gear.desc + "&nbsp;</h4><p><small>Total Original Acquisition Value: </small><strong style='color: #DD0048;'>" + cost.format() + "</strong></p></li></ul>" );
        content.appendTo($("#sidebar"));
       }
+      sidebar.show();
+    });
+     var map = L.map('map', {center: [39.8282, -98.5795], zoom: 4})
+        .addLayer(new L.tileLayer.provider('Stamen.TonerBackground'));
 
-      var div = d3.select("#map")
-            .append("div")
-            .attr("class", "tooltip")
-            .style("background", "rgba(0,0,0,0.7)")
-            .style("opacity", 0);
+    var sidebar = L.control.sidebar('sidebar', {
+      position: 'left'
+    });
 
-      var color = d3.scale.threshold()
-        .domain( [1, 10, 50, 100, 1000])
-        .range([ "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"]);
+    map.addControl(sidebar);
+
+  var div = d3.select("#map")
+      .append("div")
+      .attr("class", "tooltip")
+      .style("background", "rgba(0,0,0,0.7)")
+      .style("opacity", 0);
+
+  var color = d3.scale.threshold()
+    .domain( [1, 10, 50, 100, 1000])
+    .range([ "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"]);
 
 
     d3.json("/js/us.json", function(error, us) {
@@ -84,21 +95,21 @@ $(document).ready(function() {
         map.on("viewreset", reset);
         reset();
 
-    // Reposition the SVG to cover the features.
-    function reset() {
-          topLeft = bounds[0],
-          bottomRight = bounds[1];
+        function reset() {
+          var bounds = path.bounds(topojson.feature(us, us.objects.counties)),
+              topLeft = bounds[0],
+              bottomRight = bounds[1];
 
-      svg .attr("width", bottomRight[0] - topLeft[0])
-          .attr("height", bottomRight[1] - topLeft[1])
-          .style("left", topLeft[0] + "px")
-          .style("top", topLeft[1] + "px");
+          svg .attr("width", bottomRight[0] - topLeft[0])
+              .attr("height", bottomRight[1] - topLeft[1])
+              .style("left", topLeft[0] + "px")
+              .style("top", topLeft[1] + "px");
 
-      g   .attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+          g   .attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
 
-      feature
-        .attr("d", path);
-    }
+          feature
+            .attr("d", path);
+        }
 
     // Use Leaflet to implement a D3 geometric transformation.
     function projectPoint(x, y) {
