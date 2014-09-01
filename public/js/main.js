@@ -43,7 +43,7 @@ $(document).ready(function() {
               '<span class="legend" style="background:' + getColor(products[i]) + '"></span><label> ' +
               products[i] +  '</label><br>';
       }
-      div.innerHTML += '<h4><span class="ion-arrow-left-a"></span>Click on a county for details</h4><p><small>Data Source: <a href="https://github.com/TheUpshot/Military-Surplus-Gear">The New York Times via Github</a></small></p>';
+      div.innerHTML += '<h4><span style="color: #DD0048" class="ion-arrow-left-a"></span>Click on a county for details</h4><p><small>Data Source: <a href="https://github.com/TheUpshot/Military-Surplus-Gear">The New York Times via Github</a></small></p>';
       return div;
 
     };
@@ -109,8 +109,7 @@ $(document).ready(function() {
 
             .on("mouseout", function(d) {
               div.transition().duration(500).style("opacity", 0);
-                //.style("background", "rgba(0,0,0,0.0)");
-              })
+            })
 
             .on("click", function(d) {
                   $("#sidebar").empty();
@@ -124,7 +123,7 @@ $(document).ready(function() {
                     sidebar.hide();
                     return;
                   } else {
-                    $("#sidebar").prepend('<p class="lead"><span class="s-1">Since 2006</span>, state and local law enforcement agencies in <span class="s-2">' + county + ' </span> requested and recieved around <span class="s-3">' + cost.format() + ' </span>  worth of Military Equipment via the <a href="http://www.dispositionservices.dla.mil/leso/Pages/1033ProgramFAQs.aspx">Department of Defense 1033 Program.</a><p><span class="s-4"> There are approximately ' + households.format('0,0') + ' households in ' + county + ' </span ></p></br><span class="s-5">Cost per Household: ' + costPerHousehold.format() + '</span></p><hr/><p class="s-items"><span class="ion-clipboard"></span>Items Recieved <span class="ion-arrow-down-a"></span></p>');
+                    $("#sidebar").prepend('<p class="lead"><span class="s-1">Since 2006</span>, state and local law enforcement agencies in <span class="s-2">' + county + ' </span> requested and recieved around <span class="s-3">' + cost.format() + ' </span>  worth of Military Equipment via the <a href="http://www.dispositionservices.dla.mil/leso/Pages/1033ProgramFAQs.aspx">Department of Defense 1033 Program.</a><p><span class="s-4"> There are approximately ' + households.format('0,0') + ' households in ' + county + ' </span ></p></br><span class="s-5">Cost per Household: ' + costPerHousehold.format() + '</span></p><hr/><p class="s-items"><span class="ion-clipboard"></span>Items Recieved <span style="color: #DD0048; vertical-align: middle" class="ion-arrow-down-a"></span></p>');
                   }
                   socket.emit('getid', county);
                   });
