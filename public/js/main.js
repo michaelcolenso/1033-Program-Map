@@ -31,7 +31,6 @@ $(document).ready(function() {
     });
 
     legend.onAdd = function (map) {
-
       var div = L.DomUtil.create('div', 'info legend nav'),
           products = [ 'Under $1', '$1 < $10', '$10 < $50', '$50 < $100', '$100 < $1000' ],
           labels = [];
@@ -45,11 +44,8 @@ $(document).ready(function() {
       }
       div.innerHTML += '<h4><span style="color: #DD0048" class="ion-arrow-left-a"></span>Click on a county for details</h4><p><small>Data Source: <a href="https://github.com/TheUpshot/Military-Surplus-Gear">The New York Times via Github</a></small></p>';
       return div;
-
     };
-
     map.addControl(sidebar);
-
     legend.addTo(map);
 
     function getColor(d) {
