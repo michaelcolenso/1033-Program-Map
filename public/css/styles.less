@@ -547,6 +547,7 @@
   @media (min-width: 768px) and (max-width: 991px) {
     .leaflet-sidebar {
       width: 305px; }
+
       .leaflet-sidebar.left.visible ~ .leaflet-left {
         left: 305px; }
       .leaflet-sidebar.right.visible ~ .leaflet-right {
@@ -1014,6 +1015,7 @@ a .mi-icon:hover {
   padding: 5%;
   min-width: 130px;
   background: #fff;
+  box-shadow: 0 1px 5px rgba(0,0,0,.15);
   p {
     .ion-asterisk {
       font-size: .7em;
@@ -1046,16 +1048,18 @@ a .mi-icon:hover {
   top: 40px;
   text-align: center;
   .s-1 {
-    font-size: 2.5em;
+    font-size: 1.5em;
   }
   .s-2 {
-    font-size: 3.0em;
+    font-size: 2.0em;
     font-weight: 800;
   }
 
   .s-3 {
     font-size: 2.0em;
-    color: #DD0048;
+    padding: 1%;
+    background: #000;
+    color: #fff;
     font-weight: 800;
   }
 
@@ -1065,8 +1069,10 @@ a .mi-icon:hover {
   }
 
   .s-5 {
-    font-size: 2.0em;
+    font-size: 1.2em;
     font-weight: 700;
+    border: 1px solid #777;
+    padding: 2%;
   }
   .s-items {
     text-align: left;

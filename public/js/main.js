@@ -43,7 +43,7 @@ $(document).ready(function() {
               '<span class="legend" style="background:' + getColor(products[i]) + '"></span><label> ' +
               products[i] +  '</label><br>';
       }
-      div.innerHTML += '<h4>Click on a county for details</h4><p><small>Data Source: <a href="https://github.com/TheUpshot/Military-Surplus-Gear">The New York Times via Github</a></small></p>';
+      div.innerHTML += '<h4><span class="ion-arrow-left-a"></span>Click on a county for details</h4><p><small>Data Source: <a href="https://github.com/TheUpshot/Military-Surplus-Gear">The New York Times via Github</a></small></p>';
       return div;
 
     };
@@ -104,11 +104,12 @@ $(document).ready(function() {
 
                 div.transition().duration(500).style("opacity", 0);
                 div.transition().duration(200).style("opacity", .9);
-                div.html( "<h3>" + county + "</h3><p>1033 Acquisition Value:</p><p><span class='ion-cash'></span>" + cost.format('$ 0,0[.]00') + "</p>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
+                div.html( "<h3>" + county + "</h3><p><span class='ion-jet'></span>" + cost.format('$ 0,0[.]00') + "</p>").style("left", (d3.event.pageX) + "px").style("top", (d3.event.pageY) + "px");
             })
 
             .on("mouseout", function(d) {
               div.transition().duration(500).style("opacity", 0);
+                //.style("background", "rgba(0,0,0,0.0)");
               })
 
             .on("click", function(d) {
@@ -123,7 +124,7 @@ $(document).ready(function() {
                     sidebar.hide();
                     return;
                   } else {
-                    $("#sidebar").prepend('<p class="lead"><span class="s-1">Since 2006</span>, state and local law enforcement agencies in <span class="s-2">' + county + ' </span> requested and recieved around <span class="s-3">' + cost.format() + ' </span> worth of Military Equipment via the <a href="">Defense Department\'s 1033 program .</a><p><span class="s-4"> There are approximately ' + households.format('0,0') + ' households in ' + county + ' </span ></p></br><span class="s-5">Cost per Household: ' + costPerHousehold.format() + '</span></p><hr/><p class="s-items"><span class="ion-clipboard"></span>Items Recieved : </p>');
+                    $("#sidebar").prepend('<p class="lead"><span class="s-1">Since 2006</span>, state and local law enforcement agencies in <span class="s-2">' + county + ' </span> requested and recieved around <span class="s-3">' + cost.format() + ' </span>  worth of Military Equipment via the <a href="http://www.dispositionservices.dla.mil/leso/Pages/1033ProgramFAQs.aspx">Department of Defense 1033 Program.</a><p><span class="s-4"> There are approximately ' + households.format('0,0') + ' households in ' + county + ' </span ></p></br><span class="s-5">Cost per Household: ' + costPerHousehold.format() + '</span></p><hr/><p class="s-items"><span class="ion-clipboard"></span>Items Recieved <span class="ion-arrow-down-a"></span></p>');
                   }
                   socket.emit('getid', county);
                   });
