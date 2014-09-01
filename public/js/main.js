@@ -46,6 +46,7 @@ $(document).ready(function() {
       return div;
     };
     map.addControl(sidebar);
+
     legend.addTo(map);
 
     function getColor(d) {
