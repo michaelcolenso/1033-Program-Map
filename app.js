@@ -216,8 +216,8 @@ io.sockets.on('connection', function(socket) {
           MongoClient.connect( secrets.db, function(err, db) {
             if(err) throw err;
             var collection = db.collection('id_county_item');
-            console.log(data);
             var name = data;
+            console.log(data);
             collection.find( { Areaname : name }).toArray(function(err, results) {
               console.dir(results.length);
               socket.emit("id", results);
