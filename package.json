@@ -1,5 +1,5 @@
 {
-  "name": "colenso.org",
+  "name": "1033-Program-Map",
   "version": "0.0.1",
   "scripts": {
     "start": "node app.js",

@@ -105,7 +105,7 @@ app.use(function(req, res, next) {
   req.session.returnTo = req.path;
   next();
 });
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: week }));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: day }));
 
 /**
  * routes.
