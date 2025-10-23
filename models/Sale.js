@@ -1,9 +1,8 @@
 var mongoose = require('mongoose');
-var bcrypt = require('bcrypt-nodejs');
-var crypto = require('crypto');
 
+// TODO: Define schema for Sale model
 var saleSchema = new mongoose.Schema({
-
+  // Add fields as needed
 });
 
 module.exports = mongoose.model('Sale', saleSchema);

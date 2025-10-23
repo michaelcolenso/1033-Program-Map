@@ -20,3 +20,27 @@ node_modules
 *.iml
 .DS_Store
 Thumbs.db
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+config/secrets.js
+
+# Build output
+dist/
+build/
+.cache/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db

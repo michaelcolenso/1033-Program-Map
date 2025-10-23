@@ -1,3 +1,22 @@
+/**
+ * =============================================================================
+ * 1033 Program Map - Main Application File
+ * =============================================================================
+ *
+ * This is the main Express.js application that powers the 1033 Program Map,
+ * an interactive visualization of military equipment transfers to law
+ * enforcement agencies.
+ *
+ * Key Features:
+ * - Real-time data updates via Socket.io
+ * - User authentication with OAuth providers
+ * - Interactive map interface
+ * - RESTful API endpoints
+ *
+ * =============================================================================
+ */
+
+// Core dependencies
 var express = require('express');
 var cookieParser = require('cookie-parser');
 var compress = require('compression');
@@ -11,8 +30,9 @@ var request = require('request');
 var parser = require('JSONStream').parse('features.*.attributes');
 var fs = require('fs');
 
+// Utility libraries
 var _ = require('lodash');
-var MongoStore = require('connect-mongo')({ session: session });
+var MongoStore = require('connect-mongo');
 var flash = require('express-flash');
 var path = require('path');
 var mongoose = require('mongoose');
@@ -43,12 +63,27 @@ var server = http.createServer(app);
 var io = require('socket.io').listen(server);
 
 /**
- * Connect to MongoDB.
+ * =============================================================================
+ * Connect to MongoDB
+ * =============================================================================
+ *
+ * Establishes connection to MongoDB using Mongoose ODM.
+ * Connection string is loaded from environment variables via secrets.js
  */
 
-mongoose.connect(secrets.db);
-mongoose.connection.on('error', function() {
-  console.error('MongoDB Connection Error. Make sure MongoDB is running.');
+mongoose.connect(secrets.db, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
+
+mongoose.connection.on('error', function(err) {
+  console.error('MongoDB Connection Error:', err);
+  console.error('Make sure MongoDB is running and the connection string is correct.');
+  process.exit(1);
+});
+
+mongoose.connection.on('connected', function() {
+  console.log('MongoDB connected successfully');
 });
 
 var hour = 3600000;
@@ -64,7 +99,7 @@ var csrfExclude = ['/url1', '/url2'];
 
 app.set('port', process.env.PORT || 8080);
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.set('view engine', 'pug');
 app.use(compress());
 app.use(connectAssets({
   paths: ['public/css', 'public/js'],
@@ -77,10 +112,13 @@ app.use(expressValidator());
 app.use(methodOverride());
 app.use(cookieParser());
 app.use(session({
+  resave: true,
+  saveUninitialized: true,
   secret: secrets.sessionSecret,
-  store: new MongoStore({
-    url: secrets.db,
-    auto_reconnect: true
+  cookie: { maxAge: 1209600000 }, // 2 weeks
+  store: MongoStore.create({
+    mongoUrl: secrets.db,
+    touchAfter: 24 * 3600 // lazy session update
   })
 }));
 app.use(passport.initialize());
@@ -210,24 +248,55 @@ app.get('/auth/venmo/callback', passport.authorize('venmo', { failureRedirect: '
 
 app.use(errorHandler());
 
+/**
+ * =============================================================================
+ * Socket.io Real-time Communication
+ * =============================================================================
+ *
+ * Handles real-time bidirectional event-based communication with clients.
+ * Used for dynamic map data updates without page refresh.
+ */
+
 io.sockets.on('connection', function(socket) {
 
-      socket.on('getid', function(data) {
-          MongoClient.connect( secrets.db, function(err, db) {
-            if(err) throw err;
-            var collection = db.collection('id_county_item');
-            var name = data;
-            console.log(data);
-            collection.find( { Areaname : name }).toArray(function(err, results) {
-              console.dir(results.length);
-              socket.emit("id", results);
-            });
-          });
-      });
+  /**
+   * Handle 'getid' event - Fetches equipment data for a specific county/area
+   * @param {String} data - Area name to query
+   * @emits id - Sends back equipment records for the requested area
+   */
+  socket.on('getid', function(data) {
+    MongoClient.connect(secrets.db, function(err, db) {
+      if (err) {
+        console.error('MongoDB connection error:', err);
+        socket.emit('error', { message: 'Database connection failed' });
+        return;
+      }
 
-      socket.on('disconnect', function() {
-        console.log('socket disconnected bro');
+      var collection = db.collection('id_county_item');
+      var areaName = data;
+      console.log('Fetching data for area:', areaName);
+
+      collection.find({ Areaname: areaName }).toArray(function(err, results) {
+        if (err) {
+          console.error('Query error:', err);
+          socket.emit('error', { message: 'Query failed' });
+          db.close();
+          return;
+        }
+
+        console.log('Found', results.length, 'records for', areaName);
+        socket.emit('id', results);
+        db.close();
       });
+    });
+  });
+
+  /**
+   * Handle client disconnection
+   */
+  socket.on('disconnect', function() {
+    console.log('Client disconnected');
+  });
 });
 
 server.listen(app.get('port'), function() {
