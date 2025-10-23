@@ -69,12 +69,12 @@ var io = require('socket.io').listen(server);
  *
  * Establishes connection to MongoDB using Mongoose ODM.
  * Connection string is loaded from environment variables via secrets.js
+ *
+ * Note: In Mongoose 6+, useNewUrlParser and useUnifiedTopology are no longer
+ * needed and are always set to true by default.
  */
 
-mongoose.connect(secrets.db, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(secrets.db);
 
 mongoose.connection.on('error', function(err) {
   console.error('MongoDB Connection Error:', err);
@@ -83,7 +83,7 @@ mongoose.connection.on('error', function(err) {
 });
 
 mongoose.connection.on('connected', function() {
-  console.log('MongoDB connected successfully');
+  console.log('MongoDB connected successfully to:', secrets.db);
 });
 
 var hour = 3600000;
@@ -265,28 +265,33 @@ io.sockets.on('connection', function(socket) {
    * @emits id - Sends back equipment records for the requested area
    */
   socket.on('getid', function(data) {
-    MongoClient.connect(secrets.db, function(err, db) {
+    // MongoDB v4+ API: connect returns a client, not a database
+    MongoClient.connect(secrets.db, function(err, client) {
       if (err) {
         console.error('MongoDB connection error:', err);
         socket.emit('error', { message: 'Database connection failed' });
         return;
       }
 
+      // Extract database from connection string or use default
+      var dbName = secrets.db.split('/').pop().split('?')[0] || 'test';
+      var db = client.db(dbName);
       var collection = db.collection('id_county_item');
       var areaName = data;
+
       console.log('Fetching data for area:', areaName);
 
       collection.find({ Areaname: areaName }).toArray(function(err, results) {
         if (err) {
           console.error('Query error:', err);
           socket.emit('error', { message: 'Query failed' });
-          db.close();
+          client.close();
           return;
         }
 
         console.log('Found', results.length, 'records for', areaName);
         socket.emit('id', results);
-        db.close();
+        client.close();
       });
     });
   });

@@ -56,8 +56,13 @@ exports.postLogin = function(req, res, next) {
  */
 
 exports.logout = function(req, res) {
-  req.logout();
-  res.redirect('/');
+  // Passport 0.6+ requires a callback function for logout
+  req.logout(function(err) {
+    if (err) {
+      console.error('Logout error:', err);
+    }
+    res.redirect('/');
+  });
 };
 
 /**
@@ -180,11 +185,18 @@ exports.postUpdatePassword = function(req, res, next) {
  */
 
 exports.postDeleteAccount = function(req, res, next) {
-  User.remove({ _id: req.user.id }, function(err) {
+  // Updated from deprecated User.remove() to User.deleteOne()
+  User.deleteOne({ _id: req.user.id }, function(err) {
     if (err) return next(err);
-    req.logout();
-    req.flash('info', { msg: 'Your account has been deleted.' });
-    res.redirect('/');
+
+    // Passport 0.6+ requires a callback function for logout
+    req.logout(function(logoutErr) {
+      if (logoutErr) {
+        console.error('Logout error after account deletion:', logoutErr);
+      }
+      req.flash('info', { msg: 'Your account has been deleted.' });
+      res.redirect('/');
+    });
   });
 };
 
