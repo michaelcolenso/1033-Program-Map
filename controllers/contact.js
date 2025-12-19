@@ -1,10 +1,12 @@
 var secrets = require('../config/secrets');
 var nodemailer = require("nodemailer");
-var smtpTransport = nodemailer.createTransport('SMTP', {
+
+// Create transporter using modern nodemailer syntax
+var smtpTransport = nodemailer.createTransport({
   service: 'SendGrid',
   auth: {
-    user: secrets.sendgrid.user,
-    pass: secrets.sendgrid.password
+    user: secrets.sendgrid.user || 'test@test.com',
+    pass: secrets.sendgrid.password || 'test'
   }
 });
 

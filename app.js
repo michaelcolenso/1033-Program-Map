@@ -26,7 +26,6 @@ var logger = require('morgan');
 var errorHandler = require('errorhandler');
 var csrf = require('lusca').csrf();
 var methodOverride = require('method-override');
-var request = require('request');
 var parser = require('JSONStream').parse('features.*.attributes');
 var fs = require('fs');
 
@@ -60,7 +59,7 @@ var passportConf = require('./config/passport');
 var app = express();
 var http = require('http');
 var server = http.createServer(app);
-var io = require('socket.io').listen(server);
+var io = require('socket.io')(server);
 
 /**
  * =============================================================================
@@ -89,7 +88,6 @@ mongoose.connection.on('connected', function() {
 var hour = 3600000;
 var day = hour * 24;
 var week = day * 7;
-var MongoClient = require('mongodb').MongoClient;
 
 /**
  * CSRF whitelist.
@@ -112,10 +110,15 @@ app.use(expressValidator());
 app.use(methodOverride());
 app.use(cookieParser());
 app.use(session({
-  resave: true,
-  saveUninitialized: true,
+  resave: false, // Don't save session if unmodified
+  saveUninitialized: false, // Don't create session until something stored
   secret: secrets.sessionSecret,
-  cookie: { maxAge: 1209600000 }, // 2 weeks
+  cookie: {
+    maxAge: 1209600000, // 2 weeks
+    httpOnly: true, // Prevents client-side JS from accessing the cookie
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    sameSite: 'lax' // CSRF protection
+  },
   store: MongoStore.create({
     mongoUrl: secrets.db,
     touchAfter: 24 * 3600 // lazy session update
@@ -148,6 +151,28 @@ app.use(express.static(path.join(__dirname, 'public'), { maxAge: day }));
 /**
  * routes.
  */
+
+/**
+ * Health check endpoint for deployment monitoring
+ * Returns 200 OK if app is running and database is connected
+ */
+app.get('/health', function(req, res) {
+  var healthcheck = {
+    uptime: process.uptime(),
+    message: 'OK',
+    timestamp: Date.now()
+  };
+
+  // Check MongoDB connection status
+  if (mongoose.connection.readyState === 1) {
+    healthcheck.database = 'connected';
+    res.status(200).json(healthcheck);
+  } else {
+    healthcheck.database = 'disconnected';
+    healthcheck.message = 'Database connection failed';
+    res.status(503).json(healthcheck);
+  }
+});
 
 app.get('/', homeController.index);
 app.get('/map', mapController.index);
@@ -255,6 +280,9 @@ app.use(errorHandler());
  *
  * Handles real-time bidirectional event-based communication with clients.
  * Used for dynamic map data updates without page refresh.
+ *
+ * Uses Mongoose connection for efficient connection pooling instead of
+ * creating a new MongoDB connection for each socket event.
  */
 
 io.sockets.on('connection', function(socket) {
@@ -264,11 +292,14 @@ io.sockets.on('connection', function(socket) {
    * @param {String} data - Area name to query
    * @emits id - Sends back equipment records for the requested area
    */
-  socket.on('getid', function(data) {
-    MongoClient.connect(secrets.db, function(err, db) {
-      if (err) {
-        console.error('MongoDB connection error:', err);
-        socket.emit('error', { message: 'Database connection failed' });
+  socket.on('getid', async function(data) {
+    try {
+      // Use Mongoose connection instead of creating new MongoClient connection
+      var db = mongoose.connection.db;
+
+      if (!db) {
+        console.error('MongoDB connection not available');
+        socket.emit('error', { message: 'Database connection not available' });
         return;
       }
 
@@ -276,19 +307,14 @@ io.sockets.on('connection', function(socket) {
       var areaName = data;
       console.log('Fetching data for area:', areaName);
 
-      collection.find({ Areaname: areaName }).toArray(function(err, results) {
-        if (err) {
-          console.error('Query error:', err);
-          socket.emit('error', { message: 'Query failed' });
-          db.close();
-          return;
-        }
+      var results = await collection.find({ Areaname: areaName }).toArray();
 
-        console.log('Found', results.length, 'records for', areaName);
-        socket.emit('id', results);
-        db.close();
-      });
-    });
+      console.log('Found', results.length, 'records for', areaName);
+      socket.emit('id', results);
+    } catch (err) {
+      console.error('Query error:', err);
+      socket.emit('error', { message: 'Query failed: ' + err.message });
+    }
   });
 
   /**

@@ -4,7 +4,7 @@ var querystring = require('querystring');
 var validator = require('validator');
 var async = require('async');
 var cheerio = require('cheerio');
-var request = require('request');
+var axios = require('axios');
 var graph = require('fbgraph');
 var LastFmNode = require('lastfm').LastFmNode;
 var tumblr = require('tumblr.js');
@@ -124,18 +124,21 @@ exports.getFacebook = function(req, res, next) {
  */
 
 exports.getScraping = function(req, res, next) {
-  request.get('https://news.ycombinator.com/', function(err, request, body) {
-    if (err) return next(err);
-    var $ = cheerio.load(body);
-    var links = [];
-    $(".title a[href^='http'], a[href^='https']").each(function() {
-      links.push($(this));
+  axios.get('https://news.ycombinator.com/')
+    .then(function(response) {
+      var $ = cheerio.load(response.data);
+      var links = [];
+      $(".title a[href^='http'], a[href^='https']").each(function() {
+        links.push($(this));
+      });
+      res.render('api/scraping', {
+        title: 'Web Scraping',
+        links: links
+      });
+    })
+    .catch(function(err) {
+      next(err);
     });
-    res.render('api/scraping', {
-      title: 'Web Scraping',
-      links: links
-    });
-  });
 };
 
 /**
@@ -174,14 +177,19 @@ exports.getAviary = function(req, res) {
 exports.getNewYorkTimes = function(req, res, next) {
   var query = querystring.stringify({ 'api-key': secrets.nyt.key, 'list-name': 'young-adult' });
   var url = 'http://api.nytimes.com/svc/books/v2/lists?' + query;
-  request.get(url, function(error, request, body) {
-    if (request.statusCode === 403) return next(Error('Missing or Invalid New York Times API Key'));
-    var bestsellers = JSON.parse(body);
-    res.render('api/nyt', {
-      title: 'New York Times API',
-      books: bestsellers.results
+  axios.get(url)
+    .then(function(response) {
+      res.render('api/nyt', {
+        title: 'New York Times API',
+        books: response.data.results
+      });
+    })
+    .catch(function(error) {
+      if (error.response && error.response.status === 403) {
+        return next(Error('Missing or Invalid New York Times API Key'));
+      }
+      next(error);
     });
-  });
 };
 
 /**
@@ -322,27 +330,45 @@ exports.getSteam = function(req, res, next) {
     playerAchievements: function(done) {
       query.appid = '49520';
       var qs = querystring.stringify(query);
-      request.get({ url: 'http://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/?' + qs, json: true }, function(error, request, body) {
-        if (request.statusCode === 401) return done(new Error('Missing or Invalid Steam API Key'));
-        done(error, body);
-      });
+      axios.get('http://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/?' + qs)
+        .then(function(response) {
+          done(null, response.data);
+        })
+        .catch(function(error) {
+          if (error.response && error.response.status === 401) {
+            return done(new Error('Missing or Invalid Steam API Key'));
+          }
+          done(error);
+        });
     },
     playerSummaries: function(done) {
       query.steamids = steamId;
       var qs = querystring.stringify(query);
-      request.get({ url: 'http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?' + qs, json: true }, function(error, request, body) {
-        if (request.statusCode === 401) return done(new Error('Missing or Invalid Steam API Key'));
-        done(error, body);
-      });
+      axios.get('http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?' + qs)
+        .then(function(response) {
+          done(null, response.data);
+        })
+        .catch(function(error) {
+          if (error.response && error.response.status === 401) {
+            return done(new Error('Missing or Invalid Steam API Key'));
+          }
+          done(error);
+        });
     },
     ownedGames: function(done) {
       query.include_appinfo = 1;
       query.include_played_free_games = 1;
       var qs = querystring.stringify(query);
-      request.get({ url: 'http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?' + qs, json: true }, function(error, request, body) {
-        if (request.statusCode === 401) return done(new Error('Missing or Invalid Steam API Key'));
-        done(error, body);
-      });
+      axios.get('http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?' + qs)
+        .then(function(response) {
+          done(null, response.data);
+        })
+        .catch(function(error) {
+          if (error.response && error.response.status === 401) {
+            return done(new Error('Missing or Invalid Steam API Key'));
+          }
+          done(error);
+        });
     }
   },
   function(err, results) {
@@ -475,15 +501,22 @@ exports.getVenmo = function(req, res, next) {
 
   async.parallel({
     getProfile: function(done) {
-      request.get({ url: 'https://api.venmo.com/v1/me?' + query, json: true }, function(err, request, body) {
-        done(err, body);
-      });
+      axios.get('https://api.venmo.com/v1/me?' + query)
+        .then(function(response) {
+          done(null, response.data);
+        })
+        .catch(function(err) {
+          done(err);
+        });
     },
     getRecentPayments: function(done) {
-      request.get({ url: 'https://api.venmo.com/v1/payments?' + query, json: true }, function(err, request, body) {
-        done(err, body);
-
-      });
+      axios.get('https://api.venmo.com/v1/payments?' + query)
+        .then(function(response) {
+          done(null, response.data);
+        })
+        .catch(function(err) {
+          done(err);
+        });
     }
   },
   function(err, results) {
@@ -533,15 +566,21 @@ exports.postVenmo = function(req, res, next) {
     formData.user_id = req.body.user;
   }
 
-  request.post('https://api.venmo.com/v1/payments', { form: formData }, function(err, request, body) {
-    if (err) return next(err);
-    if (request.statusCode !== 200) {
-      req.flash('errors', { msg: JSON.parse(body).error.message });
-      return res.redirect('/api/venmo');
-    }
-    req.flash('success', { msg: 'Venmo money transfer complete' });
-    res.redirect('/api/venmo');
-  });
+  axios.post('https://api.venmo.com/v1/payments', formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  })
+    .then(function(response) {
+      req.flash('success', { msg: 'Venmo money transfer complete' });
+      res.redirect('/api/venmo');
+    })
+    .catch(function(error) {
+      if (error.response) {
+        req.flash('errors', { msg: error.response.data.error.message });
+      } else {
+        req.flash('errors', { msg: 'An error occurred during the transfer' });
+      }
+      res.redirect('/api/venmo');
+    });
 };
 
 /**

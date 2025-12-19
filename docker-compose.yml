@@ -1,0 +1,80 @@
+# =============================================================================
+# Docker Compose Configuration for 1033 Program Map
+# =============================================================================
+# This file defines the multi-container Docker application setup for local
+# development and testing.
+#
+# Usage:
+#   docker-compose up -d        # Start services in background
+#   docker-compose down         # Stop and remove containers
+#   docker-compose logs -f      # View logs
+#   docker-compose restart      # Restart services
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # MongoDB Database Service
+  # =============================================================================
+  mongodb:
+    image: mongo:6
+    container_name: 1033-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: test
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./dump:/dump
+    networks:
+      - app-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # Application Service
+  # =============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: 1033-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: development
+      PORT: 8080
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/test?authSource=admin
+      MONGOLAB_URI: mongodb://admin:password@mongodb:27017/test?authSource=admin
+      SESSION_SECRET: your-session-secret-change-in-production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - app-network
+    volumes:
+      # Mount source code for development (comment out for production)
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  mongodb_data:
+    driver: local

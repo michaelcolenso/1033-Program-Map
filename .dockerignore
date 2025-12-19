@@ -1,0 +1,57 @@
+# =============================================================================
+# Docker ignore file
+# =============================================================================
+# Excludes files and directories from the Docker build context
+
+# Dependencies
+node_modules
+npm-debug.log
+package-lock.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+.nyc_output
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# CI/CD
+.travis.yml
+.github
+
+# Documentation
+*.md
+!README.md
+CONTRIBUTING.md
+
+# Temporary files
+tmp
+temp
+*.tmp
