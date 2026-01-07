@@ -1,0 +1,47 @@
+# =============================================================================
+# Docker Ignore - Files to exclude from Docker build context
+# =============================================================================
+
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Testing
+test
+coverage
+.nyc_output
+
+# Documentation
+*.md
+!README.md
+
+# Development
+.bowerrc
+bower.json
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.travis.yml
+.github
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log

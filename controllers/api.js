@@ -4,20 +4,58 @@ var querystring = require('querystring');
 var validator = require('validator');
 var async = require('async');
 var cheerio = require('cheerio');
-var request = require('request');
+var axios = require('axios');
 var graph = require('fbgraph');
 var LastFmNode = require('lastfm').LastFmNode;
 var tumblr = require('tumblr.js');
-var foursquare = require('node-foursquare')({ secrets: secrets.foursquare });
 var Github = require('github-api');
 var Twit = require('twit');
-var stripe =  require('stripe')(secrets.stripe.apiKey);
-var twilio = require('twilio')(secrets.twilio.sid, secrets.twilio.token);
-var Linkedin = require('node-linkedin')(secrets.linkedin.clientID, secrets.linkedin.clientSecret, secrets.linkedin.callbackURL);
-var clockwork = require('clockwork')({key: secrets.clockwork.apiKey});
-var ig = require('instagram-node').instagram();
-var Y = require('yui/yql');
 var _ = require('lodash');
+
+// Initialize third-party services lazily to avoid startup errors with missing config
+var foursquare, stripe, twilio, Linkedin, clockwork, ig;
+
+function getFoursquare() {
+  if (!foursquare && secrets.foursquare && secrets.foursquare.clientId) {
+    foursquare = require('node-foursquare')({ secrets: secrets.foursquare });
+  }
+  return foursquare;
+}
+
+function getStripe() {
+  if (!stripe && secrets.stripe && secrets.stripe.apiKey) {
+    stripe = require('stripe')(secrets.stripe.apiKey);
+  }
+  return stripe;
+}
+
+function getTwilio() {
+  if (!twilio && secrets.twilio && secrets.twilio.sid && secrets.twilio.token) {
+    twilio = require('twilio')(secrets.twilio.sid, secrets.twilio.token);
+  }
+  return twilio;
+}
+
+function getLinkedin() {
+  if (!Linkedin && secrets.linkedin && secrets.linkedin.clientID) {
+    Linkedin = require('node-linkedin')(secrets.linkedin.clientID, secrets.linkedin.clientSecret, secrets.linkedin.callbackURL);
+  }
+  return Linkedin;
+}
+
+function getClockwork() {
+  if (!clockwork && secrets.clockwork && secrets.clockwork.apiKey) {
+    clockwork = require('clockwork')({key: secrets.clockwork.apiKey});
+  }
+  return clockwork;
+}
+
+function getInstagram() {
+  if (!ig) {
+    ig = require('instagram-node').instagram();
+  }
+  return ig;
+}
 
 /**
  * GET /api
@@ -36,21 +74,25 @@ exports.getApi = function(req, res) {
  */
 
 exports.getFoursquare = function(req, res, next) {
+  var fsq = getFoursquare();
+  if (!fsq) {
+    return next(new Error('Foursquare API not configured'));
+  }
   var token = _.find(req.user.tokens, { kind: 'foursquare' });
   console.log(token);
   async.parallel({
     trendingVenues: function(callback) {
-      foursquare.Venues.getTrending('40.7222756', '-74.0022724', { limit: 50 }, token.accessToken, function(err, results) {
+      fsq.Venues.getTrending('40.7222756', '-74.0022724', { limit: 50 }, token.accessToken, function(err, results) {
         callback(err, results);
       });
     },
     venueDetail: function(callback) {
-      foursquare.Venues.getVenue('49da74aef964a5208b5e1fe3', token.accessToken, function(err, results) {
+      fsq.Venues.getVenue('49da74aef964a5208b5e1fe3', token.accessToken, function(err, results) {
         callback(err, results);
       });
     },
     userCheckins: function(callback) {
-      foursquare.Users.getCheckins('self', null, token.accessToken, function(err, results) {
+      fsq.Users.getCheckins('self', null, token.accessToken, function(err, results) {
         callback(err, results);
       });
     }
@@ -123,10 +165,10 @@ exports.getFacebook = function(req, res, next) {
  * Web scraping example using Cheerio library.
  */
 
-exports.getScraping = function(req, res, next) {
-  request.get('https://news.ycombinator.com/', function(err, request, body) {
-    if (err) return next(err);
-    var $ = cheerio.load(body);
+exports.getScraping = async function(req, res, next) {
+  try {
+    var response = await axios.get('https://news.ycombinator.com/');
+    var $ = cheerio.load(response.data);
     var links = [];
     $(".title a[href^='http'], a[href^='https']").each(function() {
       links.push($(this));
@@ -135,7 +177,9 @@ exports.getScraping = function(req, res, next) {
       title: 'Web Scraping',
       links: links
     });
-  });
+  } catch (err) {
+    return next(err);
+  }
 };
 
 /**
@@ -171,17 +215,21 @@ exports.getAviary = function(req, res) {
  * New York Times API example.
  */
 
-exports.getNewYorkTimes = function(req, res, next) {
-  var query = querystring.stringify({ 'api-key': secrets.nyt.key, 'list-name': 'young-adult' });
-  var url = 'http://api.nytimes.com/svc/books/v2/lists?' + query;
-  request.get(url, function(error, request, body) {
-    if (request.statusCode === 403) return next(Error('Missing or Invalid New York Times API Key'));
-    var bestsellers = JSON.parse(body);
+exports.getNewYorkTimes = async function(req, res, next) {
+  try {
+    var query = querystring.stringify({ 'api-key': secrets.nyt.key, 'list-name': 'young-adult' });
+    var url = 'http://api.nytimes.com/svc/books/v2/lists?' + query;
+    var response = await axios.get(url);
     res.render('api/nyt', {
       title: 'New York Times API',
-      books: bestsellers.results
+      books: response.data.results
     });
-  });
+  } catch (err) {
+    if (err.response && err.response.status === 403) {
+      return next(Error('Missing or Invalid New York Times API Key'));
+    }
+    return next(err);
+  }
 };
 
 /**
@@ -314,46 +362,32 @@ exports.postTwitter = function(req, res, next) {
  * Steam API example.
  */
 
-exports.getSteam = function(req, res, next) {
+exports.getSteam = async function(req, res, next) {
   var steamId = '76561197982488301';
-  var query = { l: 'english', steamid: steamId, key: secrets.steam.apiKey };
+  var baseQuery = { l: 'english', steamid: steamId, key: secrets.steam.apiKey };
 
-  async.parallel({
-    playerAchievements: function(done) {
-      query.appid = '49520';
-      var qs = querystring.stringify(query);
-      request.get({ url: 'http://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/?' + qs, json: true }, function(error, request, body) {
-        if (request.statusCode === 401) return done(new Error('Missing or Invalid Steam API Key'));
-        done(error, body);
-      });
-    },
-    playerSummaries: function(done) {
-      query.steamids = steamId;
-      var qs = querystring.stringify(query);
-      request.get({ url: 'http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?' + qs, json: true }, function(error, request, body) {
-        if (request.statusCode === 401) return done(new Error('Missing or Invalid Steam API Key'));
-        done(error, body);
-      });
-    },
-    ownedGames: function(done) {
-      query.include_appinfo = 1;
-      query.include_played_free_games = 1;
-      var qs = querystring.stringify(query);
-      request.get({ url: 'http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?' + qs, json: true }, function(error, request, body) {
-        if (request.statusCode === 401) return done(new Error('Missing or Invalid Steam API Key'));
-        done(error, body);
-      });
-    }
-  },
-  function(err, results) {
-    if (err) return next(err);
+  try {
+    var [playerAchievements, playerSummaries, ownedGames] = await Promise.all([
+      axios.get('http://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/?' +
+        querystring.stringify({ ...baseQuery, appid: '49520' })),
+      axios.get('http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?' +
+        querystring.stringify({ ...baseQuery, steamids: steamId })),
+      axios.get('http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?' +
+        querystring.stringify({ ...baseQuery, include_appinfo: 1, include_played_free_games: 1 }))
+    ]);
+
     res.render('api/steam', {
       title: 'Steam Web API',
-      ownedGames: results.ownedGames.response.games,
-      playerAchievemments: results.playerAchievements.playerstats,
-      playerSummary: results.playerSummaries.response.players[0]
+      ownedGames: ownedGames.data.response.games,
+      playerAchievemments: playerAchievements.data.playerstats,
+      playerSummary: playerSummaries.data.response.players[0]
     });
-  });
+  } catch (err) {
+    if (err.response && err.response.status === 401) {
+      return next(new Error('Missing or Invalid Steam API Key'));
+    }
+    return next(err);
+  }
 };
 
 /**
@@ -374,10 +408,14 @@ exports.getStripe = function(req, res) {
  */
 
 exports.postStripe = function(req, res, next) {
+  var stripeClient = getStripe();
+  if (!stripeClient) {
+    return next(new Error('Stripe API not configured'));
+  }
   var stripeToken = req.body.stripeToken;
   var stripeEmail = req.body.stripeEmail;
 
-  stripe.charges.create({
+  stripeClient.charges.create({
     amount: 395,
     currency: 'usd',
     card: stripeToken,
@@ -411,6 +449,10 @@ exports.getTwilio = function(req, res) {
  */
 
 exports.postTwilio = function(req, res, next) {
+  var twilioClient = getTwilio();
+  if (!twilioClient) {
+    return next(new Error('Twilio API not configured'));
+  }
   req.assert('number', 'Phone number is required.').notEmpty();
   req.assert('message', 'Message cannot be blank.').notEmpty();
 
@@ -427,7 +469,7 @@ exports.postTwilio = function(req, res, next) {
     body: req.body.message
   };
 
-  twilio.sendMessage(message, function(err, responseData) {
+  twilioClient.messages.create(message, function(err, responseData) {
     if (err) return next(err.message);
     req.flash('success', { msg: 'Text sent to ' + responseData.to + '.'});
     res.redirect('/api/twilio');
@@ -452,12 +494,16 @@ exports.getClockwork = function(req, res) {
  */
 
 exports.postClockwork = function(req, res, next) {
+  var clockworkClient = getClockwork();
+  if (!clockworkClient) {
+    return next(new Error('Clockwork API not configured'));
+  }
   var message = {
     To: req.body.telephone,
     From: 'Hackathon',
     Content: 'Hello from the Hackathon Starter'
   };
-  clockwork.sendSms(message, function(err, responseData) {
+  clockworkClient.sendSms(message, function(err, responseData) {
     if (err) return next(err.errDesc);
     req.flash('success', { msg: 'Text sent to ' + responseData.responses[0].to });
     res.redirect('/api/clockwork');
@@ -469,31 +515,24 @@ exports.postClockwork = function(req, res, next) {
  * Venmo API example.
  */
 
-exports.getVenmo = function(req, res, next) {
+exports.getVenmo = async function(req, res, next) {
   var token = _.find(req.user.tokens, { kind: 'venmo' });
   var query = querystring.stringify({ access_token: token.accessToken });
 
-  async.parallel({
-    getProfile: function(done) {
-      request.get({ url: 'https://api.venmo.com/v1/me?' + query, json: true }, function(err, request, body) {
-        done(err, body);
-      });
-    },
-    getRecentPayments: function(done) {
-      request.get({ url: 'https://api.venmo.com/v1/payments?' + query, json: true }, function(err, request, body) {
-        done(err, body);
+  try {
+    var [profileRes, paymentsRes] = await Promise.all([
+      axios.get('https://api.venmo.com/v1/me?' + query),
+      axios.get('https://api.venmo.com/v1/payments?' + query)
+    ]);
 
-      });
-    }
-  },
-  function(err, results) {
-    if (err) return next(err);
     res.render('api/venmo', {
       title: 'Venmo API',
-      profile: results.getProfile.data,
-      recentPayments: results.getRecentPayments.data
+      profile: profileRes.data.data,
+      recentPayments: paymentsRes.data.data
     });
-  });
+  } catch (err) {
+    return next(err);
+  }
 };
 
 /**
@@ -504,7 +543,7 @@ exports.getVenmo = function(req, res, next) {
  * Send money.
  */
 
-exports.postVenmo = function(req, res, next) {
+exports.postVenmo = async function(req, res, next) {
   req.assert('user', 'Phone, Email or Venmo User ID cannot be blank').notEmpty();
   req.assert('note', 'Please enter a message to accompany the payment').notEmpty();
   req.assert('amount', 'The amount you want to pay cannot be blank').notEmpty();
@@ -533,15 +572,17 @@ exports.postVenmo = function(req, res, next) {
     formData.user_id = req.body.user;
   }
 
-  request.post('https://api.venmo.com/v1/payments', { form: formData }, function(err, request, body) {
-    if (err) return next(err);
-    if (request.statusCode !== 200) {
-      req.flash('errors', { msg: JSON.parse(body).error.message });
-      return res.redirect('/api/venmo');
-    }
+  try {
+    await axios.post('https://api.venmo.com/v1/payments', formData);
     req.flash('success', { msg: 'Venmo money transfer complete' });
     res.redirect('/api/venmo');
-  });
+  } catch (err) {
+    if (err.response) {
+      req.flash('errors', { msg: err.response.data.error.message });
+      return res.redirect('/api/venmo');
+    }
+    return next(err);
+  }
 };
 
 /**
@@ -550,8 +591,12 @@ exports.postVenmo = function(req, res, next) {
  */
 
 exports.getLinkedin = function(req, res, next) {
+  var LinkedinClient = getLinkedin();
+  if (!LinkedinClient) {
+    return next(new Error('LinkedIn API not configured'));
+  }
   var token = _.find(req.user.tokens, { kind: 'linkedin' });
-  var linkedin = Linkedin.init(token.accessToken);
+  var linkedin = LinkedinClient.init(token.accessToken);
 
   linkedin.people.me(function(err, $in) {
     if (err) return next(err);
@@ -568,29 +613,30 @@ exports.getLinkedin = function(req, res, next) {
  */
 
 exports.getInstagram = function(req, res, next) {
+  var igClient = getInstagram();
   var token = _.find(req.user.tokens, { kind: 'instagram' });
 
-  ig.use({ client_id: secrets.instagram.clientID, client_secret: secrets.instagram.clientSecret });
-  ig.use({ access_token: token.accessToken });
+  igClient.use({ client_id: secrets.instagram.clientID, client_secret: secrets.instagram.clientSecret });
+  igClient.use({ access_token: token.accessToken });
 
   async.parallel({
     searchByUsername: function(done) {
-      ig.user_search('richellemead', function(err, users, limit) {
+      igClient.user_search('richellemead', function(err, users, limit) {
         done(err, users);
       });
     },
     searchByUserId: function(done) {
-      ig.user('175948269', function(err, user) {
+      igClient.user('175948269', function(err, user) {
         done(err, user);
       });
     },
     popularImages: function(done) {
-      ig.media_popular(function(err, medias) {
+      igClient.media_popular(function(err, medias) {
         done(err, medias);
       });
     },
     myRecentMedia: function(done) {
-      ig.user_self_media_recent(function(err, medias, pagination, limit) {
+      igClient.user_self_media_recent(function(err, medias, pagination, limit) {
         done(err, medias);
       });
     }
@@ -609,15 +655,12 @@ exports.getInstagram = function(req, res, next) {
 /**
  * GET /api/yahoo
  * Yahoo API example.
+ * Note: Yahoo YQL service has been deprecated
  */
 exports.getYahoo = function(req, res) {
-  Y.YQL('SELECT * FROM weather.forecast WHERE (location = 10007)', function(response) {
-    var location = response.query.results.channel.location;
-    var condition = response.query.results.channel.item.condition;
-    res.render('api/yahoo', {
-      title: 'Yahoo API',
-      location: location,
-      condition: condition
-    });
+  res.render('api/yahoo', {
+    title: 'Yahoo API',
+    location: { city: 'New York', region: 'NY' },
+    condition: { text: 'Service Deprecated', temp: 'N/A' }
   });
 };

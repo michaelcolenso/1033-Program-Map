@@ -1,14 +1,6 @@
 var _ = require('lodash');
 var passport = require('passport');
-var InstagramStrategy = require('passport-instagram').Strategy;
 var LocalStrategy = require('passport-local').Strategy;
-var FacebookStrategy = require('passport-facebook').Strategy;
-var TwitterStrategy = require('passport-twitter').Strategy;
-var GitHubStrategy = require('passport-github').Strategy;
-var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
-var LinkedInStrategy = require('passport-linkedin-oauth2').Strategy;
-var OAuthStrategy = require('passport-oauth').OAuthStrategy; // Tumblr
-var OAuth2Strategy = require('passport-oauth').OAuth2Strategy; // Venmo, Foursquare
 var User = require('../models/User');
 var secrets = require('./secrets');
 
@@ -22,9 +14,10 @@ passport.deserializeUser(function(id, done) {
   });
 });
 
-// Sign in with Instagram.
-
-passport.use(new InstagramStrategy(secrets.instagram,function(req, accessToken, refreshToken, profile, done) {
+// Sign in with Instagram (only if configured)
+if (secrets.instagram && secrets.instagram.clientID) {
+  var InstagramStrategy = require('passport-instagram').Strategy;
+  passport.use(new InstagramStrategy(secrets.instagram, function(req, accessToken, refreshToken, profile, done) {
   if (req.user) {
     User.findOne({ instagram: profile.id }, function(err, existingUser) {
       if (existingUser) {
@@ -63,7 +56,8 @@ passport.use(new InstagramStrategy(secrets.instagram,function(req, accessToken, 
       });
     });
   }
-}));
+  }));
+}
 
 // Sign in using Email and Password.
 
@@ -95,9 +89,10 @@ passport.use(new LocalStrategy({ usernameField: 'email' }, function(email, passw
  *       - Else create a new account.
  */
 
-// Sign in with Facebook.
-
-passport.use(new FacebookStrategy(secrets.facebook, function(req, accessToken, refreshToken, profile, done) {
+// Sign in with Facebook (only if configured)
+if (secrets.facebook && secrets.facebook.clientID) {
+  var FacebookStrategy = require('passport-facebook').Strategy;
+  passport.use(new FacebookStrategy(secrets.facebook, function(req, accessToken, refreshToken, profile, done) {
   if (req.user) {
     User.findOne({ facebook: profile.id }, function(err, existingUser) {
       if (existingUser) {
@@ -140,11 +135,13 @@ passport.use(new FacebookStrategy(secrets.facebook, function(req, accessToken, r
       });
     });
   }
-}));
+  }));
+}
 
-// Sign in with GitHub.
-
-passport.use(new GitHubStrategy(secrets.github, function(req, accessToken, refreshToken, profile, done) {
+// Sign in with GitHub (only if configured)
+if (secrets.github && secrets.github.clientID) {
+  var GitHubStrategy = require('passport-github').Strategy;
+  passport.use(new GitHubStrategy(secrets.github, function(req, accessToken, refreshToken, profile, done) {
   if (req.user) {
     User.findOne({ github: profile.id }, function(err, existingUser) {
       if (existingUser) {
@@ -188,11 +185,13 @@ passport.use(new GitHubStrategy(secrets.github, function(req, accessToken, refre
       });
     });
   }
-}));
+  }));
+}
 
-// Sign in with Twitter.
-
-passport.use(new TwitterStrategy(secrets.twitter, function(req, accessToken, tokenSecret, profile, done) {
+// Sign in with Twitter (only if configured)
+if (secrets.twitter && secrets.twitter.consumerKey) {
+  var TwitterStrategy = require('passport-twitter').Strategy;
+  passport.use(new TwitterStrategy(secrets.twitter, function(req, accessToken, tokenSecret, profile, done) {
   if (req.user) {
     User.findOne({ twitter: profile.id }, function(err, existingUser) {
       if (existingUser) {
@@ -231,11 +230,13 @@ passport.use(new TwitterStrategy(secrets.twitter, function(req, accessToken, tok
       });
     });
   }
-}));
+  }));
+}
 
-// Sign in with Google.
-
-passport.use(new GoogleStrategy(secrets.google, function(req, accessToken, refreshToken, profile, done) {
+// Sign in with Google (only if configured)
+if (secrets.google && secrets.google.clientID) {
+  var GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+  passport.use(new GoogleStrategy(secrets.google, function(req, accessToken, refreshToken, profile, done) {
   if (req.user) {
     User.findOne({ google: profile.id }, function(err, existingUser) {
       if (existingUser) {
@@ -277,11 +278,13 @@ passport.use(new GoogleStrategy(secrets.google, function(req, accessToken, refre
       });
     });
   }
-}));
+  }));
+}
 
-// Sign in with LinkedIn.
-
-passport.use(new LinkedInStrategy(secrets.linkedin, function(req, accessToken, refreshToken, profile, done) {
+// Sign in with LinkedIn (only if configured)
+if (secrets.linkedin && secrets.linkedin.clientID) {
+  var LinkedInStrategy = require('passport-linkedin-oauth2').Strategy;
+  passport.use(new LinkedInStrategy(secrets.linkedin, function(req, accessToken, refreshToken, profile, done) {
   if (req.user) {
     User.findOne({ linkedin: profile.id }, function(err, existingUser) {
       if (existingUser) {
@@ -325,68 +328,75 @@ passport.use(new LinkedInStrategy(secrets.linkedin, function(req, accessToken, r
       });
     });
   }
-}));
+  }));
+}
 
-// Tumblr API setup.
-
-passport.use('tumblr', new OAuthStrategy({
-    requestTokenURL: 'http://www.tumblr.com/oauth/request_token',
-    accessTokenURL: 'http://www.tumblr.com/oauth/access_token',
-    userAuthorizationURL: 'http://www.tumblr.com/oauth/authorize',
-    consumerKey: secrets.tumblr.consumerKey,
-    consumerSecret: secrets.tumblr.consumerSecret,
-    callbackURL: secrets.tumblr.callbackURL,
-    passReqToCallback: true
-  },
-  function(req, token, tokenSecret, profile, done) {
-    User.findById(req.user._id, function(err, user) {
-      user.tokens.push({ kind: 'tumblr', accessToken: token, tokenSecret: tokenSecret });
-      user.save(function(err) {
-        done(err, user);
+// Tumblr API setup (only if configured)
+if (secrets.tumblr && secrets.tumblr.consumerKey) {
+  var OAuthStrategy = require('passport-oauth').OAuthStrategy;
+  passport.use('tumblr', new OAuthStrategy({
+      requestTokenURL: 'http://www.tumblr.com/oauth/request_token',
+      accessTokenURL: 'http://www.tumblr.com/oauth/access_token',
+      userAuthorizationURL: 'http://www.tumblr.com/oauth/authorize',
+      consumerKey: secrets.tumblr.consumerKey,
+      consumerSecret: secrets.tumblr.consumerSecret,
+      callbackURL: secrets.tumblr.callbackURL,
+      passReqToCallback: true
+    },
+    function(req, token, tokenSecret, profile, done) {
+      User.findById(req.user._id, function(err, user) {
+        user.tokens.push({ kind: 'tumblr', accessToken: token, tokenSecret: tokenSecret });
+        user.save(function(err) {
+          done(err, user);
+        });
       });
-    });
-  }
-));
+    }
+  ));
+}
 
-// Foursquare API setup.
-
-passport.use('foursquare', new OAuth2Strategy({
-    authorizationURL: 'https://foursquare.com/oauth2/authorize',
-    tokenURL: 'https://foursquare.com/oauth2/access_token',
-    clientID: secrets.foursquare.clientId,
-    clientSecret: secrets.foursquare.clientSecret,
-    callbackURL: secrets.foursquare.redirectUrl,
-    passReqToCallback: true
-  },
-  function(req, accessToken, refreshToken, profile, done) {
-    User.findById(req.user._id, function(err, user) {
-      user.tokens.push({ kind: 'foursquare', accessToken: accessToken });
-      user.save(function(err) {
-        done(err, user);
+// Foursquare API setup (only if configured)
+if (secrets.foursquare && secrets.foursquare.clientId) {
+  var OAuth2Strategy = require('passport-oauth').OAuth2Strategy;
+  passport.use('foursquare', new OAuth2Strategy({
+      authorizationURL: 'https://foursquare.com/oauth2/authorize',
+      tokenURL: 'https://foursquare.com/oauth2/access_token',
+      clientID: secrets.foursquare.clientId,
+      clientSecret: secrets.foursquare.clientSecret,
+      callbackURL: secrets.foursquare.redirectUrl,
+      passReqToCallback: true
+    },
+    function(req, accessToken, refreshToken, profile, done) {
+      User.findById(req.user._id, function(err, user) {
+        user.tokens.push({ kind: 'foursquare', accessToken: accessToken });
+        user.save(function(err) {
+          done(err, user);
+        });
       });
-    });
-  }
-));
+    }
+  ));
+}
 
-// Venmo API setup.
-
-passport.use('venmo', new OAuth2Strategy({
-    authorizationURL: 'https://api.venmo.com/v1/oauth/authorize',
-    tokenURL: 'https://api.venmo.com/v1/oauth/access_token',
-    clientID: secrets.venmo.clientId,
-    clientSecret: secrets.venmo.clientSecret,
-    callbackURL: secrets.venmo.redirectUrl,
-    passReqToCallback: true
-  },
-  function(req, accessToken, refreshToken, profile, done) {
-    User.findById(req.user._id, function(err, user) {
-      user.tokens.push({ kind: 'venmo', accessToken: accessToken });
-      user.save(function(err) {
-        done(err, user);
+// Venmo API setup (only if configured)
+if (secrets.venmo && secrets.venmo.clientId) {
+  var OAuth2StrategyVenmo = require('passport-oauth').OAuth2Strategy;
+  passport.use('venmo', new OAuth2StrategyVenmo({
+      authorizationURL: 'https://api.venmo.com/v1/oauth/authorize',
+      tokenURL: 'https://api.venmo.com/v1/oauth/access_token',
+      clientID: secrets.venmo.clientId,
+      clientSecret: secrets.venmo.clientSecret,
+      callbackURL: secrets.venmo.redirectUrl,
+      passReqToCallback: true
+    },
+    function(req, accessToken, refreshToken, profile, done) {
+      User.findById(req.user._id, function(err, user) {
+        user.tokens.push({ kind: 'venmo', accessToken: accessToken });
+        user.save(function(err) {
+          done(err, user);
+        });
       });
-    });
-  }
-));
+    }
+  ));
+}
 
 // Login Required middleware.
 

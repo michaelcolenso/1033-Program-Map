@@ -26,7 +26,7 @@ var logger = require('morgan');
 var errorHandler = require('errorhandler');
 var csrf = require('lusca').csrf();
 var methodOverride = require('method-override');
-var request = require('request');
+var axios = require('axios');
 var parser = require('JSONStream').parse('features.*.attributes');
 var fs = require('fs');
 
@@ -37,7 +37,6 @@ var flash = require('express-flash');
 var path = require('path');
 var mongoose = require('mongoose');
 var passport = require('passport');
-var expressValidator = require('express-validator');
 var connectAssets = require('connect-assets');
 
 /**
@@ -60,7 +59,8 @@ var passportConf = require('./config/passport');
 var app = express();
 var http = require('http');
 var server = http.createServer(app);
-var io = require('socket.io').listen(server);
+var { Server } = require('socket.io');
+var io = new Server(server);
 
 /**
  * =============================================================================
@@ -71,10 +71,7 @@ var io = require('socket.io').listen(server);
  * Connection string is loaded from environment variables via secrets.js
  */
 
-mongoose.connect(secrets.db, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(secrets.db);
 
 mongoose.connection.on('error', function(err) {
   console.error('MongoDB Connection Error:', err);
@@ -108,13 +105,12 @@ app.use(connectAssets({
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(expressValidator());
 app.use(methodOverride());
 app.use(cookieParser());
 app.use(session({
   resave: true,
   saveUninitialized: true,
-  secret: secrets.sessionSecret,
+  secret: secrets.sessionSecret || 'development-secret-change-in-production',
   cookie: { maxAge: 1209600000 }, // 2 weeks
   store: MongoStore.create({
     mongoUrl: secrets.db,
@@ -126,7 +122,7 @@ app.use(passport.session());
 app.use(flash());
 app.use(function(req, res, next) {
   // CSRF protection.
-  if (_.contains(csrfExclude, req.path)) return next();
+  if (_.includes(csrfExclude, req.path)) return next();
   csrf(req, res, next);
 });
 app.use(function(req, res, next) {
@@ -264,31 +260,26 @@ io.sockets.on('connection', function(socket) {
    * @param {String} data - Area name to query
    * @emits id - Sends back equipment records for the requested area
    */
-  socket.on('getid', function(data) {
-    MongoClient.connect(secrets.db, function(err, db) {
-      if (err) {
-        console.error('MongoDB connection error:', err);
-        socket.emit('error', { message: 'Database connection failed' });
-        return;
-      }
-
+  socket.on('getid', async function(data) {
+    let client;
+    try {
+      client = await MongoClient.connect(secrets.db);
+      var db = client.db();
       var collection = db.collection('id_county_item');
       var areaName = data;
       console.log('Fetching data for area:', areaName);
 
-      collection.find({ Areaname: areaName }).toArray(function(err, results) {
-        if (err) {
-          console.error('Query error:', err);
-          socket.emit('error', { message: 'Query failed' });
-          db.close();
-          return;
-        }
-
-        console.log('Found', results.length, 'records for', areaName);
-        socket.emit('id', results);
-        db.close();
-      });
-    });
+      var results = await collection.find({ Areaname: areaName }).toArray();
+      console.log('Found', results.length, 'records for', areaName);
+      socket.emit('id', results);
+    } catch (err) {
+      console.error('MongoDB error:', err);
+      socket.emit('error', { message: 'Database operation failed' });
+    } finally {
+      if (client) {
+        await client.close();
+      }
+    }
   });
 
   /**

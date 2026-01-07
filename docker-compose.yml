@@ -1,0 +1,56 @@
+# =============================================================================
+# 1033 Program Map - Docker Compose Configuration
+# =============================================================================
+# Local development environment with MongoDB
+# =============================================================================
+# Usage:
+#   docker-compose up -d        # Start services in background
+#   docker-compose logs -f app  # Follow application logs
+#   docker-compose down         # Stop and remove containers
+# =============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+      - MONGOLAB_URI=mongodb://mongo:27017/1033-program
+      - SESSION_SECRET=dev-session-secret-change-in-production
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      # Mount for development - remove for production
+      - ./public:/app/public:ro
+      - ./views:/app/views:ro
+    networks:
+      - app-network
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./dump:/docker-entrypoint-initdb.d/dump:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+volumes:
+  mongo-data:
+
+networks:
+  app-network:
+    driver: bridge

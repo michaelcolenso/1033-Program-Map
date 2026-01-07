@@ -1,12 +1,21 @@
 var secrets = require('../config/secrets');
 var nodemailer = require("nodemailer");
-var smtpTransport = nodemailer.createTransport('SMTP', {
-  service: 'SendGrid',
-  auth: {
-    user: secrets.sendgrid.user,
-    pass: secrets.sendgrid.password
+
+// Initialize transport lazily to avoid startup errors when email is not configured
+var smtpTransport = null;
+
+function getTransport() {
+  if (!smtpTransport && secrets.sendgrid && secrets.sendgrid.user) {
+    smtpTransport = nodemailer.createTransport({
+      service: 'SendGrid',
+      auth: {
+        user: secrets.sendgrid.user,
+        pass: secrets.sendgrid.password
+      }
+    });
   }
-});
+  return smtpTransport;
+}
 
 /**
  * GET /contact
@@ -39,6 +48,12 @@ exports.postContact = function(req, res) {
     return res.redirect('/contact');
   }
 
+  var transport = getTransport();
+  if (!transport) {
+    req.flash('errors', { msg: 'Email service not configured' });
+    return res.redirect('/contact');
+  }
+
   var from = req.body.email;
   var name = req.body.name;
   var body = req.body.message;
@@ -52,7 +67,7 @@ exports.postContact = function(req, res) {
     text: body
   };
 
-  smtpTransport.sendMail(mailOptions, function(err) {
+  transport.sendMail(mailOptions, function(err) {
     if (err) {
       req.flash('errors', { msg: err.message });
       return res.redirect('/contact');
