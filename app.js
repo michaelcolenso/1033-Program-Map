@@ -1,306 +1,236 @@
 /**
  * =============================================================================
- * 1033 Program Map - Main Application File
+ * 1033 Program Map - Main Application
  * =============================================================================
  *
- * This is the main Express.js application that powers the 1033 Program Map,
- * an interactive visualization of military equipment transfers to law
- * enforcement agencies.
- *
- * Key Features:
- * - Real-time data updates via Socket.io
- * - User authentication with OAuth providers
- * - Interactive map interface
- * - RESTful API endpoints
- *
- * =============================================================================
+ * Interactive visualization of military equipment transfers to law enforcement
+ * agencies through the US Department of Defense 1033 Program.
  */
 
-// Core dependencies
-var express = require('express');
-var cookieParser = require('cookie-parser');
-var compress = require('compression');
-var session = require('express-session');
-var bodyParser = require('body-parser');
-var logger = require('morgan');
-var errorHandler = require('errorhandler');
-var csrf = require('lusca').csrf();
-var methodOverride = require('method-override');
-var request = require('request');
-var parser = require('JSONStream').parse('features.*.attributes');
-var fs = require('fs');
+'use strict';
 
-// Utility libraries
-var _ = require('lodash');
-var MongoStore = require('connect-mongo');
-var flash = require('express-flash');
-var path = require('path');
-var mongoose = require('mongoose');
-var passport = require('passport');
-var expressValidator = require('express-validator');
-var connectAssets = require('connect-assets');
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const compression = require('compression');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const flash = require('express-flash');
+const mongoose = require('mongoose');
+const passport = require('passport');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
+const { csrf } = require('lusca');
+const rateLimit = require('express-rate-limit');
 
-/**
- * Controllers
- */
+// Load environment variables
+require('dotenv').config();
 
-var homeController = require('./controllers/home');
-var userController = require('./controllers/user');
-var apiController = require('./controllers/api');
-var contactController = require('./controllers/contact');
-var mapController = require('./controllers/map');
+// Configuration
+const secrets = require('./config/secrets');
 
-var secrets = require('./config/secrets');
-var passportConf = require('./config/passport');
+// Initialize Express
+const app = express();
+const server = http.createServer(app);
 
-/**
- * Create Express server.
- */
-
-var app = express();
-var http = require('http');
-var server = http.createServer(app);
-var io = require('socket.io').listen(server);
+// Initialize Socket.io
+const { Server } = require('socket.io');
+const io = new Server(server);
 
 /**
  * =============================================================================
- * Connect to MongoDB
+ * Database Connection
  * =============================================================================
- *
- * Establishes connection to MongoDB using Mongoose ODM.
- * Connection string is loaded from environment variables via secrets.js
  */
 
-mongoose.connect(secrets.db, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+mongoose.connect(secrets.db)
+  .then(() => console.log('✓ MongoDB connected successfully'))
+  .catch((err) => {
+    console.error('✗ MongoDB connection error:', err.message);
+    process.exit(1);
+  });
+
+// Store db reference for Socket.io
+let db;
+mongoose.connection.once('open', () => {
+  db = mongoose.connection.db;
 });
 
-mongoose.connection.on('error', function(err) {
-  console.error('MongoDB Connection Error:', err);
-  console.error('Make sure MongoDB is running and the connection string is correct.');
-  process.exit(1);
-});
-
-mongoose.connection.on('connected', function() {
-  console.log('MongoDB connected successfully');
-});
-
-var hour = 3600000;
-var day = hour * 24;
-var week = day * 7;
-var MongoClient = require('mongodb').MongoClient;
-
 /**
- * CSRF whitelist.
+ * =============================================================================
+ * Express Configuration
+ * =============================================================================
  */
 
-var csrfExclude = ['/url1', '/url2'];
+const ONE_DAY = 24 * 60 * 60 * 1000;
+const TWO_WEEKS = 14 * ONE_DAY;
 
 app.set('port', process.env.PORT || 8080);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
-app.use(compress());
-app.use(connectAssets({
-  paths: ['public/css', 'public/js'],
-  helperContext: app.locals
+app.set('trust proxy', 1);
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws:", "wss:"]
+    }
+  }
 }));
-app.use(logger('dev'));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(expressValidator());
-app.use(methodOverride());
+
+// Compression & logging
+app.use(compression());
+app.use(morgan('dev'));
+
+// Body parsing
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Session configuration
 app.use(session({
-  resave: true,
-  saveUninitialized: true,
+  resave: false,
+  saveUninitialized: false,
   secret: secrets.sessionSecret,
-  cookie: { maxAge: 1209600000 }, // 2 weeks
+  cookie: {
+    maxAge: TWO_WEEKS,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  },
   store: MongoStore.create({
     mongoUrl: secrets.db,
-    touchAfter: 24 * 3600 // lazy session update
+    touchAfter: ONE_DAY / 1000
   })
 }));
+
+// Authentication
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Flash messages
 app.use(flash());
-app.use(function(req, res, next) {
-  // CSRF protection.
-  if (_.contains(csrfExclude, req.path)) return next();
-  csrf(req, res, next);
+
+// CSRF protection (skip for API routes)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  csrf()(req, res, next);
 });
-app.use(function(req, res, next) {
-  // Make user object available in templates.
+
+// Rate limiting for API routes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/', apiLimiter);
+
+// Template locals
+app.use((req, res, next) => {
   res.locals.user = req.user;
   next();
 });
-app.use(function(req, res, next) {
-  // Remember original destination before login.
-  var path = req.path.split('/')[1];
-  if (/auth|login|logout|signup|fonts|favicon/i.test(path)) {
-    return next();
+
+// Remember return URL
+app.use((req, res, next) => {
+  const skipPaths = /^(\/auth|\/login|\/logout|\/signup|\/favicon)/i;
+  if (!skipPaths.test(req.path)) {
+    req.session.returnTo = req.path;
   }
-  req.session.returnTo = req.path;
   next();
 });
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: day }));
 
-/**
- * routes.
- */
-
-app.get('/', homeController.index);
-app.get('/map', mapController.index);
-app.get('/login', userController.getLogin);
-app.post('/login', userController.postLogin);
-app.get('/logout', userController.logout);
-app.get('/forgot', userController.getForgot);
-app.post('/forgot', userController.postForgot);
-app.get('/reset/:token', userController.getReset);
-app.post('/reset/:token', userController.postReset);
-app.get('/signup', userController.getSignup);
-app.post('/signup', userController.postSignup);
-app.get('/contact', contactController.getContact);
-app.post('/contact', contactController.postContact);
-app.get('/account', passportConf.isAuthenticated, userController.getAccount);
-app.post('/account/profile', passportConf.isAuthenticated, userController.postUpdateProfile);
-app.post('/account/password', passportConf.isAuthenticated, userController.postUpdatePassword);
-app.post('/account/delete', passportConf.isAuthenticated, userController.postDeleteAccount);
-app.get('/account/unlink/:provider', passportConf.isAuthenticated, userController.getOauthUnlink);
-
-/**
- * API examples routes.
- */
-
-app.get('/api', apiController.getApi);
-app.get('/api/lastfm', apiController.getLastfm);
-app.get('/api/nyt', apiController.getNewYorkTimes);
-app.get('/api/aviary', apiController.getAviary);
-app.get('/api/steam', apiController.getSteam);
-app.get('/api/stripe', apiController.getStripe);
-app.post('/api/stripe', apiController.postStripe);
-app.get('/api/scraping', apiController.getScraping);
-app.get('/api/twilio', apiController.getTwilio);
-app.post('/api/twilio', apiController.postTwilio);
-app.get('/api/clockwork', apiController.getClockwork);
-app.post('/api/clockwork', apiController.postClockwork);
-app.get('/api/foursquare', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getFoursquare);
-app.get('/api/tumblr', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getTumblr);
-app.get('/api/facebook', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getFacebook);
-app.get('/api/github', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getGithub);
-app.get('/api/twitter', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getTwitter);
-app.post('/api/twitter', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.postTwitter);
-app.get('/api/venmo', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getVenmo);
-app.post('/api/venmo', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.postVenmo);
-app.get('/api/linkedin', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getLinkedin);
-app.get('/api/instagram', passportConf.isAuthenticated, passportConf.isAuthorized, apiController.getInstagram);
-app.get('/api/yahoo', apiController.getYahoo);
-
-/**
- * OAuth sign-in routes.
- */
-
-app.get('/auth/instagram', passport.authenticate('instagram'));
-app.get('/auth/instagram/callback', passport.authenticate('instagram', { failureRedirect: '/login' }), function(req, res) {
-  res.redirect(req.session.returnTo || '/');
-});
-app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email', 'user_location'] }));
-app.get('/auth/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/login' }), function(req, res) {
-  res.redirect(req.session.returnTo || '/');
-});
-app.get('/auth/github', passport.authenticate('github'));
-app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: '/login' }), function(req, res) {
-  res.redirect(req.session.returnTo || '/');
-});
-app.get('/auth/google', passport.authenticate('google', { scope: 'profile email' }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), function(req, res) {
-  res.redirect(req.session.returnTo || '/');
-});
-app.get('/auth/twitter', passport.authenticate('twitter'));
-app.get('/auth/twitter/callback', passport.authenticate('twitter', { failureRedirect: '/login' }), function(req, res) {
-  res.redirect(req.session.returnTo || '/');
-});
-app.get('/auth/linkedin', passport.authenticate('linkedin', { state: 'SOME STATE' }));
-app.get('/auth/linkedin/callback', passport.authenticate('linkedin', { failureRedirect: '/login' }), function(req, res) {
-  res.redirect(req.session.returnTo || '/');
-});
-
-/**
- * OAuth authorization routes for API examples.
- */
-
-app.get('/auth/foursquare', passport.authorize('foursquare'));
-app.get('/auth/foursquare/callback', passport.authorize('foursquare', { failureRedirect: '/api' }), function(req, res) {
-  res.redirect('/api/foursquare');
-});
-app.get('/auth/tumblr', passport.authorize('tumblr'));
-app.get('/auth/tumblr/callback', passport.authorize('tumblr', { failureRedirect: '/api' }), function(req, res) {
-  res.redirect('/api/tumblr');
-});
-app.get('/auth/venmo', passport.authorize('venmo', { scope: 'make_payments access_profile access_balance access_email access_phone' }));
-app.get('/auth/venmo/callback', passport.authorize('venmo', { failureRedirect: '/api' }), function(req, res) {
-  res.redirect('/api/venmo');
-});
-
-/**
- * 500 Error Handler.
- */
-
-app.use(errorHandler());
+// Static files
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: ONE_DAY }));
 
 /**
  * =============================================================================
- * Socket.io Real-time Communication
+ * Routes
  * =============================================================================
- *
- * Handles real-time bidirectional event-based communication with clients.
- * Used for dynamic map data updates without page refresh.
  */
 
-io.sockets.on('connection', function(socket) {
+const routes = require('./routes');
+app.use('/', routes);
 
-  /**
-   * Handle 'getid' event - Fetches equipment data for a specific county/area
-   * @param {String} data - Area name to query
-   * @emits id - Sends back equipment records for the requested area
-   */
-  socket.on('getid', function(data) {
-    MongoClient.connect(secrets.db, function(err, db) {
-      if (err) {
-        console.error('MongoDB connection error:', err);
-        socket.emit('error', { message: 'Database connection failed' });
-        return;
-      }
+/**
+ * =============================================================================
+ * Error Handling
+ * =============================================================================
+ */
 
-      var collection = db.collection('id_county_item');
-      var areaName = data;
-      console.log('Fetching data for area:', areaName);
+// 404 handler
+app.use((req, res) => {
+  res.status(404).render('error', {
+    title: 'Page Not Found',
+    message: 'The page you requested could not be found.'
+  });
+});
 
-      collection.find({ Areaname: areaName }).toArray(function(err, results) {
-        if (err) {
-          console.error('Query error:', err);
-          socket.emit('error', { message: 'Query failed' });
-          db.close();
-          return;
-        }
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(err.status || 500).render('error', {
+    title: 'Error',
+    message: process.env.NODE_ENV === 'production'
+      ? 'An error occurred'
+      : err.message
+  });
+});
 
-        console.log('Found', results.length, 'records for', areaName);
-        socket.emit('id', results);
-        db.close();
-      });
-    });
+/**
+ * =============================================================================
+ * Socket.io - Real-time Communication
+ * =============================================================================
+ */
+
+io.on('connection', (socket) => {
+  console.log('Client connected');
+
+  socket.on('getid', async (areaName) => {
+    if (!db) {
+      socket.emit('error', { message: 'Database not ready' });
+      return;
+    }
+
+    try {
+      const collection = db.collection('id_county_item');
+      const results = await collection.find({ Areaname: areaName }).toArray();
+      console.log(`Found ${results.length} records for ${areaName}`);
+      socket.emit('id', results);
+    } catch (err) {
+      console.error('Query error:', err);
+      socket.emit('error', { message: 'Query failed' });
+    }
   });
 
-  /**
-   * Handle client disconnection
-   */
-  socket.on('disconnect', function() {
+  socket.on('disconnect', () => {
     console.log('Client disconnected');
   });
 });
 
-server.listen(app.get('port'), function() {
-  console.log('Express server listening on port %d in %s mode', app.get('port'), app.get('env'));
+/**
+ * =============================================================================
+ * Start Server
+ * =============================================================================
+ */
+
+server.listen(app.get('port'), () => {
+  console.log(`
+  ┌────────────────────────────────────────────┐
+  │   1033 Program Map                         │
+  │   Server running on port ${app.get('port')}              │
+  │   Environment: ${process.env.NODE_ENV || 'development'}                  │
+  └────────────────────────────────────────────┘
+  `);
 });
 
 module.exports = app;

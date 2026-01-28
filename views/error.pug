@@ -1,0 +1,11 @@
+extends layout
+
+block content
+  .container
+    .row.justify-content-center.mt-5
+      .col-md-6.text-center
+        h1.display-4= title
+        p.lead= message
+        a.btn.btn-primary(href='/') Return Home
+        |
+        a.btn.btn-secondary(href='/map') View Map
