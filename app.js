@@ -23,6 +23,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const { csrf } = require('lusca');
 const rateLimit = require('express-rate-limit');
+const connectAssets = require('connect-assets');
 
 // Load environment variables
 require('dotenv').config();
@@ -148,6 +149,12 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Asset pipeline (LESS/JS compilation)
+app.use(connectAssets({
+  paths: [path.join(__dirname, 'public/css'), path.join(__dirname, 'public/js')],
+  helperContext: app.locals
+}));
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: ONE_DAY }));
