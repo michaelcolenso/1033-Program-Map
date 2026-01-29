@@ -1,15 +1,35 @@
+# Dependencies
 node_modules
 npm-debug.log
+
+# Environment files (secrets)
 .env
 .env.local
+.env.*.local
+
+# Git
 .git
 .gitignore
+
+# Docker (avoid recursive copy)
 .dockerignore
-Dockerfile
-docker-compose.yml
-*.md
+Dockerfile*
+docker-compose*.yml
+
+# IDE
 .vscode
 .idea
+*.swp
+*.swo
+
+# Testing/Coverage
 coverage
 .nyc_output
-dump
+test
+
+# Docs (keep README for reference)
+CONTRIBUTING.md
+
+# OS files
+.DS_Store
+Thumbs.db

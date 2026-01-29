@@ -6,8 +6,12 @@
  * Seeds the MongoDB database with 1033 Program equipment data.
  *
  * Usage:
- *   npm run seed
- *   node scripts/seed.js
+ *   npm run seed              # Interactive mode
+ *   npm run seed -- --force   # Force reseed (non-interactive)
+ *   node scripts/seed.js --force
+ *
+ * Options:
+ *   --force    Skip confirmation and reseed if data exists
  */
 
 'use strict';
@@ -21,10 +25,14 @@ const { MongoClient } = require('mongodb');
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongodb://localhost:27017/1033-program-map';
 const DATA_FILE = path.join(__dirname, '../controllers/id_county_item.json');
 const COLLECTION_NAME = 'id_county_item';
+const FORCE_MODE = process.argv.includes('--force');
 
 async function seed() {
   console.log('🌱 Starting database seed...');
   console.log(`📦 Database: ${MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')}`);
+  if (FORCE_MODE) {
+    console.log('⚡ Running in force mode (non-interactive)');
+  }
 
   let client;
 
@@ -35,9 +43,20 @@ async function seed() {
       process.exit(1);
     }
 
-    // Connect to MongoDB
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
+    // Connect to MongoDB with retry logic for Docker
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        break;
+      } catch (err) {
+        retries--;
+        if (retries === 0) throw err;
+        console.log(`⏳ Waiting for MongoDB... (${retries} retries left)`);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
     console.log('✓ Connected to MongoDB');
 
     const db = client.db();
@@ -47,24 +66,32 @@ async function seed() {
     const count = await collection.countDocuments();
     if (count > 0) {
       console.log(`⚠️  Collection "${COLLECTION_NAME}" already has ${count} documents.`);
-      const readline = require('readline');
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-      });
 
-      const answer = await new Promise((resolve) => {
-        rl.question('Do you want to drop and reseed? (y/N): ', resolve);
-      });
-      rl.close();
+      if (FORCE_MODE) {
+        console.log('🔄 Force mode: dropping existing collection...');
+        await collection.drop();
+        console.log('✓ Dropped existing collection');
+      } else {
+        // Interactive mode
+        const readline = require('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout
+        });
 
-      if (answer.toLowerCase() !== 'y') {
-        console.log('Seed cancelled.');
-        return;
+        const answer = await new Promise((resolve) => {
+          rl.question('Do you want to drop and reseed? (y/N): ', resolve);
+        });
+        rl.close();
+
+        if (answer.toLowerCase() !== 'y') {
+          console.log('Seed cancelled.');
+          return;
+        }
+
+        await collection.drop();
+        console.log('✓ Dropped existing collection');
       }
-
-      await collection.drop();
-      console.log(`✓ Dropped existing collection`);
     }
 
     // Read and parse JSON data

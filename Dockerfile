@@ -4,12 +4,15 @@
 
 FROM node:20-alpine
 
+# Install wget for healthcheck
+RUN apk add --no-cache wget
+
 # Create app directory
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies first (better layer caching)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy application files
 COPY . .
@@ -25,7 +28,7 @@ USER nodejs
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
 
 # Start application
