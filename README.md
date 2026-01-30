@@ -2,229 +2,208 @@
 
 An interactive map visualizing the US Department of Defense 1033 Program, which tracks the transfer of excess military equipment to law enforcement agencies across the United States.
 
-![screenshot](https://dl.dropboxusercontent.com/s/4416m5cmrsz7rrc/Screenshot%202015-02-20%2018.30.20.png)
-
 ## What is the 1033 Program?
 
 [From Wikipedia](http://en.wikipedia.org/wiki/1033_program):
 
-> The 1033 Program was created by the National Defense Authorization Act of Fiscal Year 1997 as part of the US Government's Defense Logistics Agency Disposition Services (DLA) to transfer excess military equipment to law enforcement agencies. As of 2014, 8,000 local law enforcement agencies participated in the reutilization program that has transferred $5.1 billion in military hardware from the Department of Defense to local American law enforcement agencies since 1997. According to DLA material worth $449 million was transferred in 2013 alone. The most commonly obtained item from the 1033 program is ammunition. Some of the other most commonly requested items include cold weather clothing, sand bags, medical supplies, sleeping bags, flashlights and electrical wiring. Grenade launchers and vehicles such as aircraft, watercraft and armored vehicles have also been obtained.
+> The 1033 Program was created by the National Defense Authorization Act of Fiscal Year 1997 as part of the US Government's Defense Logistics Agency Disposition Services (DLA) to transfer excess military equipment to law enforcement agencies. As of 2014, 8,000 local law enforcement agencies participated in the reutilization program that has transferred $5.1 billion in military hardware from the Department of Defense to local American law enforcement agencies since 1997.
 
 ## Features
 
-- Interactive map showing military equipment distribution across counties
+- Interactive map showing military equipment distribution across US counties
 - Real-time data updates using Socket.io
-- Detailed equipment information by region
-- User authentication with multiple OAuth providers
+- Color-coded visualization by cost per household
+- Detailed equipment breakdown by clicking on any county
+- User authentication (optional)
 - Responsive design for mobile and desktop
 
 ## Tech Stack
 
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB with Mongoose ODM
-- **Real-time**: Socket.io
-- **Template Engine**: Pug (formerly Jade)
-- **Authentication**: Passport.js with OAuth support
-- **Maps**: Leaflet with TopoJSON/GeoJSON data
+- **Backend**: Node.js 18+, Express.js 4
+- **Database**: MongoDB 6+ with Mongoose ODM
+- **Real-time**: Socket.io 4
+- **Template Engine**: Pug
+- **Maps**: Leaflet.js with D3.js overlay
+- **Data**: TopoJSON for county boundaries
+- **Security**: Helmet, rate limiting, CSRF protection
 
-## Prerequisites
+## Quick Start
 
-Before running this application, make sure you have:
-
-- **Node.js** (v18 or higher)
-- **npm** (v9 or higher)
-- **MongoDB** (v4.4 or higher)
-
-## Installation
-
-### 1. Clone the repository
+### Using Docker (Recommended)
 
 ```bash
+# Clone the repository
 git clone https://github.com/michaelcolenso/1033-Program-Map.git
 cd 1033-Program-Map
-```
 
-### 2. Install dependencies
+# Start with Docker Compose
+docker-compose up -d
 
-```bash
-npm install
-```
-
-### 3. Configure environment variables
-
-Copy the example environment file and configure it with your settings:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your configuration. At minimum, you'll need:
-
-```env
-# Required
-SESSION_SECRET=your-random-session-secret
-MONGODB_URI=mongodb://localhost:27017/test
-
-# Optional: Only needed if using OAuth providers
-FACEBOOK_ID=your-facebook-app-id
-FACEBOOK_SECRET=your-facebook-app-secret
-# ... other OAuth credentials
-```
-
-### 4. Start MongoDB
-
-Make sure MongoDB is running on your system:
-
-```bash
-# macOS with Homebrew
-brew services start mongodb-community
-
-# Ubuntu/Debian
-sudo systemctl start mongod
-
-# Windows
-net start MongoDB
-```
-
-### 5. (Optional) Restore database dump
-
-If you want to use the included database dump:
-
-```bash
-mongorestore --db test dump/test/
-```
-
-## Running the Application
-
-### Development mode (with auto-restart)
-
-```bash
-npm run dev
-```
-
-### Production mode
-
-```bash
-npm start
+# Seed the database
+docker-compose exec app npm run seed
 ```
 
 The application will be available at `http://localhost:8080`
 
-## Testing
+### Manual Installation
 
-Run the test suite:
+#### Prerequisites
 
-```bash
-npm test
-```
+- Node.js 18+
+- npm 9+
+- MongoDB 6+
 
-Run tests in watch mode:
+#### Steps
 
-```bash
-npm run test:watch
-```
+1. **Clone and install**
+   ```bash
+   git clone https://github.com/michaelcolenso/1033-Program-Map.git
+   cd 1033-Program-Map
+   npm install
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your settings
+   ```
+
+3. **Start MongoDB**
+   ```bash
+   # macOS
+   brew services start mongodb-community
+
+   # Ubuntu/Debian
+   sudo systemctl start mongod
+   ```
+
+4. **Seed the database**
+   ```bash
+   npm run seed
+   ```
+
+5. **Start the server**
+   ```bash
+   # Development (with auto-reload)
+   npm run dev
+
+   # Production
+   npm start
+   ```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ENV` | Environment mode | `development` |
+| `PORT` | Server port | `8080` |
+| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/1033-program-map` |
+| `SESSION_SECRET` | Session encryption secret | (required) |
+| `EMAIL_HOST` | SMTP host for password reset | (optional) |
+| `EMAIL_USER` | SMTP username | (optional) |
+| `EMAIL_PASSWORD` | SMTP password | (optional) |
 
 ## Project Structure
 
 ```
 1033-Program-Map/
-├── app.js              # Main application file
-├── setup.js            # CLI setup utility
-├── config/             # Configuration files
-│   ├── secrets.js      # Environment variables config
-│   └── passport.js     # Passport authentication strategies
-├── controllers/        # Route controllers
-│   ├── home.js
-│   ├── map.js
-│   ├── user.js
-│   └── api.js
-├── models/             # Database models
-│   ├── User.js
-│   └── Sale.js
-├── views/              # Pug templates
-│   ├── layout.pug
-│   ├── home.pug
-│   ├── map.pug
-│   ├── account/
-│   └── partials/
-├── public/             # Static assets
+├── app.js                 # Express application
+├── routes/
+│   └── index.js           # Route definitions
+├── controllers/
+│   ├── home.js            # Home page
+│   ├── map.js             # Map page
+│   ├── user.js            # Authentication
+│   └── contact.js         # Contact form
+├── models/
+│   └── User.js            # User model
+├── config/
+│   ├── secrets.js         # Environment config
+│   └── passport.js        # Auth strategies
+├── views/                 # Pug templates
+├── public/
 │   ├── js/
-│   ├── css/
-│   └── fonts/
-└── test/               # Test files
+│   │   ├── main.js        # Map logic
+│   │   └── *.json         # GeoJSON data
+│   └── css/
+├── scripts/
+│   └── seed.js            # Database seeder
+├── Dockerfile
+└── docker-compose.yml
 ```
 
-## Environment Variables
+## Scripts
 
-See `.env.example` for a complete list of supported environment variables. Key variables include:
+```bash
+npm start          # Start production server
+npm run dev        # Start development server with auto-reload
+npm test           # Run test suite
+npm run seed       # Seed database with equipment data
+npm run lint       # Run ESLint
+```
 
-- `SESSION_SECRET` - Secret for session encryption (required)
-- `MONGODB_URI` - MongoDB connection string
-- `PORT` - Server port (default: 8080)
-- OAuth credentials for various providers (Facebook, Twitter, GitHub, etc.)
-- API keys for third-party services (Stripe, Twilio, etc.)
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Home page |
+| `GET /map` | Interactive map |
+| `GET /api/health` | Health check |
+| `GET /login` | Login page |
+| `GET /signup` | Registration page |
+
+### Socket.io Events
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `getid` | Client → Server | Request equipment data for a county |
+| `id` | Server → Client | Equipment data response |
 
 ## Deployment
 
+### Docker
+
+```bash
+docker build -t 1033-program-map .
+docker run -p 8080:8080 -e MONGODB_URI=your-mongo-uri 1033-program-map
+```
+
 ### Heroku
 
-This application is configured for Heroku deployment with the included `Procfile`.
-
-1. Create a Heroku app:
 ```bash
 heroku create your-app-name
-```
-
-2. Add MongoDB addon:
-```bash
 heroku addons:create mongolab
-```
-
-3. Set environment variables:
-```bash
 heroku config:set SESSION_SECRET=your-secret
-# ... other environment variables
-```
-
-4. Deploy:
-```bash
 git push heroku main
 ```
 
-## API Integrations
+## Security
 
-The application includes example integrations with various APIs:
-
-- Facebook, Twitter, Instagram, GitHub
-- Stripe, Twilio
-- Last.fm, New York Times
-- Foursquare, LinkedIn
-- And more...
-
-Each integration requires appropriate API credentials in your `.env` file.
+- CSRF protection enabled
+- Rate limiting on API routes
+- Helmet.js security headers
+- Secure session cookies in production
+- Password hashing with bcrypt
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing to this project.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Security
+## Data Source
 
-- Never commit `.env` or `config/secrets.js` with real credentials
-- All API keys should be stored in environment variables
-- Use strong session secrets in production
-- Keep dependencies updated regularly
+Equipment data from [The New York Times](https://github.com/TheUpshot/Military-Surplus-Gear).
 
 ## License
 
 MIT
 
-## Acknowledgments
-
-Built upon the [Hackathon Starter](https://github.com/sahat/hackathon-starter) boilerplate.
-
 ## Support
 
-For issues and questions, please open an issue on GitHub.
+For issues and questions, please [open an issue](https://github.com/michaelcolenso/1033-Program-Map/issues) on GitHub.
 
 
 

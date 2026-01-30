@@ -1,5 +1,7 @@
-exports.index = function(req, res) {
+'use strict';
+
+exports.index = (req, res) => {
   res.render('map', {
-    title: 'map'
+    title: 'Interactive Map'
   });
 };

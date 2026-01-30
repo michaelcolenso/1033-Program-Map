@@ -1,19 +1,13 @@
-var secrets = require('../config/secrets');
-var nodemailer = require("nodemailer");
-var smtpTransport = nodemailer.createTransport('SMTP', {
-  service: 'SendGrid',
-  auth: {
-    user: secrets.sendgrid.user,
-    pass: secrets.sendgrid.password
-  }
-});
+'use strict';
+
+const nodemailer = require('nodemailer');
+const { body, validationResult } = require('express-validator');
+const secrets = require('../config/secrets');
 
 /**
  * GET /contact
- * Contact form page.
  */
-
-exports.getContact = function(req, res) {
+exports.getContact = (req, res) => {
   res.render('contact', {
     title: 'Contact'
   });
@@ -21,43 +15,50 @@ exports.getContact = function(req, res) {
 
 /**
  * POST /contact
- * Send a contact form via Nodemailer.
- * @param email
- * @param name
- * @param message
  */
+exports.postContact = [
+  body('name').notEmpty().withMessage('Name cannot be blank'),
+  body('email').isEmail().withMessage('Email is not valid'),
+  body('message').notEmpty().withMessage('Message cannot be blank'),
 
-exports.postContact = function(req, res) {
-  req.assert('name', 'Name cannot be blank').notEmpty();
-  req.assert('email', 'Email is not valid').isEmail();
-  req.assert('message', 'Message cannot be blank').notEmpty();
+  async (req, res) => {
+    const errors = validationResult(req);
 
-  var errors = req.validationErrors();
-
-  if (errors) {
-    req.flash('errors', errors);
-    return res.redirect('/contact');
-  }
-
-  var from = req.body.email;
-  var name = req.body.name;
-  var body = req.body.message;
-  var to = 'your@email.com';
-  var subject = 'Contact Form | Hackathon Starter';
-
-  var mailOptions = {
-    to: to,
-    from: from,
-    subject: subject,
-    text: body
-  };
-
-  smtpTransport.sendMail(mailOptions, function(err) {
-    if (err) {
-      req.flash('errors', { msg: err.message });
+    if (!errors.isEmpty()) {
+      req.flash('errors', errors.array());
       return res.redirect('/contact');
     }
-    req.flash('success', { msg: 'Email has been sent successfully!' });
-    res.redirect('/contact');
-  });
-};
+
+    // Check if email is configured
+    if (!secrets.email || !secrets.email.host || !secrets.email.user) {
+      req.flash('info', { msg: 'Thank you for your message! (Email service not configured)' });
+      return res.redirect('/contact');
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: secrets.email.host,
+        port: secrets.email.port,
+        auth: {
+          user: secrets.email.user,
+          pass: secrets.email.password
+        }
+      });
+
+      await transporter.sendMail({
+        to: secrets.email.from,
+        from: req.body.email,
+        replyTo: req.body.email,
+        subject: `Contact Form: ${req.body.name}`,
+        text: `From: ${req.body.name} <${req.body.email}>\n\n${req.body.message}`
+      });
+
+      req.flash('success', { msg: 'Email has been sent successfully!' });
+      res.redirect('/contact');
+    } catch (err) {
+      console.error('Contact form email error:', err);
+      req.flash('errors', [{ msg: 'Failed to send email. Please try again later.' }]);
+      res.redirect('/contact');
+    }
+  }
+];

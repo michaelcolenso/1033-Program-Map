@@ -1,78 +1,65 @@
-var mongoose = require('mongoose');
-var bcrypt = require('bcrypt');
-var crypto = require('crypto');
+'use strict';
 
-var userSchema = new mongoose.Schema({
-  email: { type: String, unique: true, lowercase: true },
-  password: String,
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
-  facebook: String,
-  twitter: String,
-  google: String,
-  github: String,
-  instagram: String,
-  linkedin: String,
-  tokens: Array,
-
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    unique: true,
+    lowercase: true,
+    trim: true,
+    required: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
   profile: {
     name: { type: String, default: '' },
-    gender: { type: String, default: '' },
-    location: { type: String, default: '' },
-    website: { type: String, default: '' },
-    picture: { type: String, default: '' }
+    location: { type: String, default: '' }
   },
-
   resetPasswordToken: String,
   resetPasswordExpires: Date
+}, {
+  timestamps: true
 });
 
 /**
- * Hash the password for security.
- * "Pre" is a Mongoose middleware that executes before each user.save() call.
+ * Hash password before saving
  */
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
 
-userSchema.pre('save', function(next) {
-  var user = this;
-
-  if (!user.isModified('password')) return next();
-
-  bcrypt.genSalt(10, function(err, salt) {
-    if (err) return next(err);
-
-    bcrypt.hash(user.password, salt, function(err, hash) {
-      if (err) return next(err);
-      user.password = hash;
-      next();
-    });
-  });
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**
- * Validate user's password.
- * Used by Passport-Local Strategy for password validation.
+ * Compare password for authentication
  */
-
-userSchema.methods.comparePassword = function(candidatePassword, cb) {
-  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
-    if (err) return cb(err);
-    cb(null, isMatch);
-  });
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
 };
 
 /**
- * Get URL to a user's gravatar.
- * Used in Navbar and Account Management page.
+ * Get Gravatar URL
  */
-
-userSchema.methods.gravatar = function(size) {
-  if (!size) size = 200;
-
+userSchema.methods.gravatar = function(size = 200) {
   if (!this.email) {
-    return 'https://gravatar.com/avatar/?s=' + size + '&d=retro';
+    return `https://gravatar.com/avatar/?s=${size}&d=retro`;
   }
 
-  var md5 = crypto.createHash('md5').update(this.email).digest('hex');
-  return 'https://gravatar.com/avatar/' + md5 + '?s=' + size + '&d=retro';
+  const md5 = crypto.createHash('md5').update(this.email).digest('hex');
+  return `https://gravatar.com/avatar/${md5}?s=${size}&d=retro`;
 };
 
 module.exports = mongoose.model('User', userSchema);

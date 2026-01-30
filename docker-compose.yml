@@ -1,0 +1,92 @@
+# =============================================================================
+# 1033 Program Map - Docker Compose Configuration
+# =============================================================================
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d --build      # Rebuild and start
+#   docker-compose run --rm seed      # Seed the database
+#   docker-compose logs -f app        # View app logs
+#   docker-compose down               # Stop all services
+#   docker-compose down -v            # Stop and remove volumes
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Main Application
+  # ---------------------------------------------------------------------------
+  app:
+    build: .
+    container_name: 1033-map-app
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - MONGODB_URI=mongodb://mongo:27017/1033-program-map
+      - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-in-production}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # MongoDB Database
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: 1033-map-mongo
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Database Seeder (run manually: docker-compose run --rm seed)
+  # ---------------------------------------------------------------------------
+  seed:
+    build: .
+    container_name: 1033-map-seed
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/1033-program-map
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: ["node", "scripts/seed.js", "--force"]
+    profiles:
+      - seed
+
+  # ---------------------------------------------------------------------------
+  # MongoDB Express (optional admin UI)
+  # Run with: docker-compose --profile dev up -d
+  # ---------------------------------------------------------------------------
+  mongo-express:
+    image: mongo-express:latest
+    container_name: 1033-map-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://mongo:27017/
+      - ME_CONFIG_BASICAUTH=false
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - dev
+
+volumes:
+  mongo_data:
+    name: 1033-map-mongo-data

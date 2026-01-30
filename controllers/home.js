@@ -1,5 +1,7 @@
-exports.index = function(req, res) {
+'use strict';
+
+exports.index = (req, res) => {
   res.render('home', {
-    title: 'Home'
+    title: '1033 Program Map'
   });
 };
