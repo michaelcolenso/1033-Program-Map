@@ -19,7 +19,7 @@ An interactive map visualizing the US Department of Defense 1033 Program, which 
 
 ## Tech Stack
 
-- **Backend**: Node.js 18+, Express.js 4
+- **Backend**: Node.js 20+, Express.js 4
 - **Database**: MongoDB 6+ with Mongoose ODM
 - **Real-time**: Socket.io 4
 - **Template Engine**: Pug
@@ -49,8 +49,8 @@ The application will be available at `http://localhost:8080`
 
 #### Prerequisites
 
-- Node.js 18+
-- npm 9+
+- Node.js 20+
+- npm 10+
 - MongoDB 6+
 
 #### Steps
