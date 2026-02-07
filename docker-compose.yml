@@ -3,12 +3,14 @@
 # =============================================================================
 #
 # Usage:
-#   docker-compose up -d              # Start all services
+#   docker-compose up -d              # Start all services (seeds DB automatically)
 #   docker-compose up -d --build      # Rebuild and start
-#   docker-compose run --rm seed      # Seed the database
 #   docker-compose logs -f app        # View app logs
 #   docker-compose down               # Stop all services
-#   docker-compose down -v            # Stop and remove volumes
+#   docker-compose down -v            # Stop and remove volumes (clears DB)
+#
+# The database is automatically seeded on first run. To force a reseed:
+#   docker-compose run --rm seed-force
 #
 # =============================================================================
 
@@ -27,8 +29,8 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/1033-program-map
       - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-in-production}
     depends_on:
-      mongo:
-        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
@@ -36,6 +38,19 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Database Seeder (runs automatically, seeds only if DB is empty)
+  # ---------------------------------------------------------------------------
+  seed:
+    build: .
+    container_name: 1033-map-seed
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/1033-program-map
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: ["node", "scripts/seed.js", "--skip-existing"]
 
   # ---------------------------------------------------------------------------
   # MongoDB Database
@@ -54,11 +69,11 @@ services:
       start_period: 10s
 
   # ---------------------------------------------------------------------------
-  # Database Seeder (run manually: docker-compose run --rm seed)
+  # Force Reseed (run manually: docker-compose run --rm seed-force)
   # ---------------------------------------------------------------------------
-  seed:
+  seed-force:
     build: .
-    container_name: 1033-map-seed
+    container_name: 1033-map-seed-force
     environment:
       - MONGODB_URI=mongodb://mongo:27017/1033-program-map
     depends_on:
@@ -66,7 +81,7 @@ services:
         condition: service_healthy
     command: ["node", "scripts/seed.js", "--force"]
     profiles:
-      - seed
+      - tools
 
   # ---------------------------------------------------------------------------
   # MongoDB Express (optional admin UI)

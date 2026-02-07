@@ -36,14 +36,16 @@ An interactive map visualizing the US Department of Defense 1033 Program, which 
 git clone https://github.com/michaelcolenso/1033-Program-Map.git
 cd 1033-Program-Map
 
-# Start with Docker Compose
+# Start with Docker Compose (database is seeded automatically)
 docker-compose up -d
-
-# Seed the database
-docker-compose exec app npm run seed
 ```
 
 The application will be available at `http://localhost:8080`
+
+To force a reseed of the database:
+```bash
+docker-compose run --rm seed-force
+```
 
 ### Manual Installation
 
