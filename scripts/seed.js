@@ -11,7 +11,8 @@
  *   node scripts/seed.js --force
  *
  * Options:
- *   --force    Skip confirmation and reseed if data exists
+ *   --force           Skip confirmation and reseed if data exists
+ *   --skip-existing   Exit silently if data already exists (for Docker auto-seed)
  */
 
 'use strict';
@@ -26,6 +27,7 @@ const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mong
 const DATA_FILE = path.join(__dirname, '../controllers/id_county_item.json');
 const COLLECTION_NAME = 'id_county_item';
 const FORCE_MODE = process.argv.includes('--force');
+const SKIP_EXISTING = process.argv.includes('--skip-existing');
 
 async function seed() {
   console.log('🌱 Starting database seed...');
@@ -67,7 +69,10 @@ async function seed() {
     if (count > 0) {
       console.log(`⚠️  Collection "${COLLECTION_NAME}" already has ${count} documents.`);
 
-      if (FORCE_MODE) {
+      if (SKIP_EXISTING) {
+        console.log('✓ Data already exists, skipping seed.');
+        return;
+      } else if (FORCE_MODE) {
         console.log('🔄 Force mode: dropping existing collection...');
         await collection.drop();
         console.log('✓ Dropped existing collection');
