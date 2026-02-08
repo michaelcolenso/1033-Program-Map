@@ -76,6 +76,10 @@ async function seed() {
         console.log('🔄 Force mode: dropping existing collection...');
         await collection.drop();
         console.log('✓ Dropped existing collection');
+      } else if (!process.stdin.isTTY) {
+        // Non-interactive environment (Docker, CI) - skip to avoid hanging
+        console.log('✓ Data already exists, skipping seed (non-interactive).');
+        return;
       } else {
         // Interactive mode
         const readline = require('readline');

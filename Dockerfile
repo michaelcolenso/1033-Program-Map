@@ -4,8 +4,8 @@
 
 FROM node:22-alpine
 
-# Install wget for healthcheck
-RUN apk add --no-cache wget
+# Install build tools for native modules (bcrypt) and wget for healthcheck
+RUN apk add --no-cache wget python3 make g++
 
 # Create app directory
 WORKDIR /app
@@ -13,6 +13,9 @@ WORKDIR /app
 # Install dependencies first (better layer caching)
 COPY package*.json ./
 RUN npm ci --omit=dev
+
+# Remove build tools after install to keep image small
+RUN apk del python3 make g++
 
 # Copy application files
 COPY . .
