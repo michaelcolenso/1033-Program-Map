@@ -103,22 +103,15 @@ async function seed() {
       }
     }
 
-    // Read and parse JSON data
+    // Read and parse data file (NDJSON: one JSON object per line)
     console.log('📖 Reading data file...');
     const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-    const data = JSON.parse(rawData);
-
-    // Convert object to array of documents
+    const lines = rawData.split('\n').filter(line => line.trim());
     const documents = [];
-    for (const [areaName, items] of Object.entries(data)) {
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          documents.push({
-            Areaname: areaName,
-            ...item
-          });
-        }
-      }
+    for (const line of lines) {
+      const doc = JSON.parse(line);
+      delete doc._id; // Remove MongoDB ObjectId so new ones are generated
+      documents.push(doc);
     }
 
     if (documents.length === 0) {
