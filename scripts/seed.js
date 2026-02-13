@@ -99,23 +99,13 @@ async function seed() {
       }
     }
 
-    // Read and parse JSON data
+    // Read and parse NDJSON data (one JSON object per line)
     console.log('📖 Reading data file...');
     const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-    const data = JSON.parse(rawData);
-
-    // Convert object to array of documents
-    const documents = [];
-    for (const [areaName, items] of Object.entries(data)) {
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          documents.push({
-            Areaname: areaName,
-            ...item
-          });
-        }
-      }
-    }
+    const documents = rawData
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => JSON.parse(line));
 
     if (documents.length === 0) {
       console.error('❌ No documents found in data file');
