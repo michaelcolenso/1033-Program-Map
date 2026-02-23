@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: 1033-program-map
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    preDeployCommand: npm run seed:skip
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false

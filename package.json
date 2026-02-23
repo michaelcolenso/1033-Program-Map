@@ -9,7 +9,9 @@
     "test": "mocha --timeout 10000",
     "test:watch": "mocha --watch",
     "lint": "eslint .",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "seed:skip": "node scripts/seed.js --skip-existing",
+    "seed:force": "node scripts/seed.js --force"
   },
   "repository": {
     "type": "git",

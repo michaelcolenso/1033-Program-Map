@@ -141,6 +141,8 @@ npm start          # Start production server
 npm run dev        # Start development server with auto-reload
 npm test           # Run test suite
 npm run seed       # Seed database with equipment data
+npm run seed:skip  # Seed only if collection is empty
+npm run seed:force # Drop and reseed collection
 npm run lint       # Run ESLint
 ```
 
@@ -170,13 +172,21 @@ docker build -t 1033-program-map .
 docker run -p 8080:8080 -e MONGODB_URI=your-mongo-uri 1033-program-map
 ```
 
-### Heroku
+### Render (Free) + MongoDB Atlas (Free)
 
+1. Create a free MongoDB Atlas cluster (`M0`) and database user.
+2. In Atlas `Network Access`, allow `0.0.0.0/0` (or tighter CIDR if available).
+3. Copy your Atlas connection string and replace `<password>`.
+4. Push this repository to GitHub (includes `render.yaml` Blueprint config).
+5. In Render, click `New` -> `Blueprint` and select this repo.
+6. Set `MONGODB_URI` in Render to your Atlas connection string.
+7. Deploy.
+
+Render will run `npm run seed:skip` during deploy, so the first deploy seeds data and later deploys skip if data already exists.
+
+To force reseed later from Render Shell:
 ```bash
-heroku create your-app-name
-heroku addons:create mongolab
-heroku config:set SESSION_SECRET=your-secret
-git push heroku main
+npm run seed:force
 ```
 
 ## Security
@@ -206,7 +216,6 @@ MIT
 ## Support
 
 For issues and questions, please [open an issue](https://github.com/michaelcolenso/1033-Program-Map/issues) on GitHub.
-
 
 
 
