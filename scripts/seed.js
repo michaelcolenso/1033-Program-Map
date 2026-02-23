@@ -21,13 +21,64 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGOLAB_URI || 'mongodb://localhost:27017/1033-program-map';
 const DATA_FILE = path.join(__dirname, '../controllers/id_county_item.json');
 const COLLECTION_NAME = 'id_county_item';
 const FORCE_MODE = process.argv.includes('--force');
 const SKIP_EXISTING = process.argv.includes('--skip-existing');
+
+function normalizeDocument(doc) {
+  if (doc && doc._id && typeof doc._id === 'object' && typeof doc._id.$oid === 'string') {
+    return {
+      ...doc,
+      _id: new ObjectId(doc._id.$oid),
+    };
+  }
+
+  return doc;
+}
+
+function parseDataFile(rawData) {
+  const trimmedData = rawData.trim();
+  if (!trimmedData) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(trimmedData);
+
+    if (Array.isArray(parsed)) {
+      return parsed.map(normalizeDocument);
+    }
+
+    // Support legacy grouped format: { "Area Name": [ {...}, {...} ] }
+    const looksLikeGroupedFormat = Object.values(parsed).some(value => Array.isArray(value));
+    if (looksLikeGroupedFormat) {
+      const documents = [];
+      for (const [areaName, items] of Object.entries(parsed)) {
+        if (!Array.isArray(items)) {
+          continue;
+        }
+
+        for (const item of items) {
+          documents.push(normalizeDocument({
+            Areaname: areaName,
+            ...item,
+          }));
+        }
+      }
+      return documents;
+    }
+
+    return [normalizeDocument(parsed)];
+  } catch {
+    // Fallback for newline-delimited JSON (NDJSON / JSON Lines)
+    const lines = trimmedData.split(/\r?\n/).filter(line => line.trim());
+    return lines.map(line => normalizeDocument(JSON.parse(line)));
+  }
+}
 
 async function seed() {
   console.log('🌱 Starting database seed...');
@@ -102,20 +153,7 @@ async function seed() {
     // Read and parse JSON data
     console.log('📖 Reading data file...');
     const rawData = fs.readFileSync(DATA_FILE, 'utf8');
-    const data = JSON.parse(rawData);
-
-    // Convert object to array of documents
-    const documents = [];
-    for (const [areaName, items] of Object.entries(data)) {
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          documents.push({
-            Areaname: areaName,
-            ...item
-          });
-        }
-      }
-    }
+    const documents = parseDataFile(rawData);
 
     if (documents.length === 0) {
       console.error('❌ No documents found in data file');
